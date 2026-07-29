@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api, { fileUrl } from '../../api';
+import api from '../../api';
 import StatusBadge from '../../components/StatusBadge.jsx';
 
 export default function StudentDashboard() {
@@ -46,7 +46,7 @@ export default function StudentDashboard() {
                 <Link to={`/student/certificate/${app.id}`} className="text-wihg-navy font-medium underline">Request Certificate →</Link>
               )}
               {app.certificate?.pdfPath && (
-                <a href={fileUrl(app.certificate.pdfPath)} target="_blank" rel="noreferrer" className="text-green-700 font-medium underline">
+                <a href={app.certificate.pdfPath} target="_blank" rel="noreferrer" className="text-green-700 font-medium underline">
                   Download Certificate ↓
                 </a>
               )}

@@ -186,39 +186,7 @@ cd ../client && npm install && npm run build && sudo cp -r dist/* /var/www/wihg/
 
 ---
 
-## 12. Deploying on Render (frontend + backend as separate services)
-
-Render's free tier is a common way to run this app, but the frontend (static site) and backend (web service) end up on **two different domains** — this requires a few settings that don't apply when running everything on one server.
-
-### Backend (Web Service)
-1. New → Web Service → connect your repo, set **Root Directory** to `server`.
-2. Build Command: `npm install && npx prisma generate && npx prisma migrate deploy`
-3. Start Command: `node src/index.js`
-4. Environment variables (Render dashboard → Environment): set every key from `server/.env.example`, especially:
-   - `JWT_SECRET` — long random string
-   - `CLIENT_ORIGIN` — the exact frontend URL, e.g. `https://training-wihg-res-in.onrender.com` (no trailing slash)
-   - `PUBLIC_BASE_URL` — this backend's own URL, e.g. `https://wihg-backend.onrender.com` (used to build QR codes)
-   - `DATABASE_URL` — see the note on SQLite below
-5. **Important — SQLite persistence:** Render's free web services have an *ephemeral* filesystem. If you leave `DATABASE_URL="file:./dev.db"`, your database resets every time the service restarts or redeploys (including automatic restarts after idling). For anything beyond a quick demo, switch to Render's free PostgreSQL add-on: create it from the dashboard, copy its "Internal Database URL" into `DATABASE_URL`, and change `provider = "sqlite"` to `provider = "postgresql"` in `prisma/schema.prisma` before deploying.
-6. Uploaded files (`server/uploads/`) have the same ephemeral-disk problem — they'll be lost on restart unless you attach a Render persistent disk (paid) or switch to external storage (e.g. S3) for production use.
-
-### Frontend (Static Site)
-1. New → Static Site → connect your repo, set **Root Directory** to `client`.
-2. Build Command: `npm install && npm run build`
-3. Publish Directory: `dist`
-4. Environment variable: `VITE_API_URL` = your backend's URL, e.g. `https://wihg-backend.onrender.com` (no trailing slash, no `/api`). This is required — the app calls the API using this value, and without it, API calls silently go to the wrong domain and the app will crash (blank white page after a brief flash). See `client/.env.example`.
-5. Add a **Rewrite Rule** (dashboard → Redirects/Rewrites tab): Source `/*`, Destination `/index.html`, Action **Rewrite**. Without this, refreshing or directly opening any page other than `/` (e.g. `/student`, `/verify/ABC123`) will 404, since those routes only exist client-side via React Router.
-6. Redeploy after adding the environment variable — Vite bakes `VITE_API_URL` in at build time, so it has no effect until the next build.
-
-### Quick troubleshooting checklist
-- **Home page flashes then goes blank:** almost always means `VITE_API_URL` is missing/wrong on the frontend service, or `CLIENT_ORIGIN` is missing/wrong on the backend (causing CORS failures). Open the browser console (F12 → Console) — the real error will be there.
-- **"Failed to fetch" / CORS errors in console:** `CLIENT_ORIGIN` on the backend doesn't exactly match the frontend's URL.
-- **File links (receipts, reports, certificates) don't open:** confirm `VITE_API_URL` is set — these are served from the backend, not the frontend.
-- **Backend takes ~50 seconds to respond on first load:** normal on Render's free tier — services spin down after 15 minutes of inactivity and cold-start on the next request.
-
----
-
-## 13. Basic hardening checklist
+## 11. Basic hardening checklist
 
 - [ ] Change every seeded password immediately after first deploy.
 - [ ] Use a strong, unique `JWT_SECRET` (32+ random characters).
