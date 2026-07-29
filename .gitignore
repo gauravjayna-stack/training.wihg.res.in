@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+*.log
+logs/
+
+# Server
+server/uploads/*
+!server/uploads/.gitkeep
+server/dev.db
+server/dev.db-journal
+server/prisma/dev.db
+server/prisma/migrations/**/migration.sql.bak
+
+# Client
+client/dist/

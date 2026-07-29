@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api, { fileUrl } from '../../api';
+import api from '../../api';
 
 export default function AccountsDashboard() {
   const [payments, setPayments] = useState([]);
@@ -51,7 +51,7 @@ export default function AccountsDashboard() {
               <div>
                 <p className="font-medium">{p.application.student.name}</p>
                 <p className="text-xs text-gray-500">UTR: {p.utrNumber} · ₹{p.amount}</p>
-                <a href={fileUrl(p.receiptFile)} target="_blank" rel="noreferrer" className="text-xs text-wihg-navy underline">View receipt</a>
+                <a href={p.receiptFile} target="_blank" rel="noreferrer" className="text-xs text-wihg-navy underline">View receipt</a>
               </div>
               <div className="flex gap-2">
                 <button disabled={busyId === p.id} onClick={() => decide(p, 'VERIFY')}

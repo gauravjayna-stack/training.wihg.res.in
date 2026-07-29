@@ -53,8 +53,6 @@ Default seeded logins (change immediately — see prisma/seed.js and .env):
 
 See `DEPLOYMENT_LINUX.md` for the full Ubuntu/Debian + Nginx + PM2 + Certbot walkthrough, or use `docker-compose.yml` to run PostgreSQL (and optionally the API) in containers.
 
-**Deploying on Render (or any setup where frontend and backend are on different domains):** see `DEPLOYMENT_LINUX.md` §12. The short version — the frontend needs a `VITE_API_URL` environment variable pointing at the backend's URL (set at build time), and the backend needs `CLIENT_ORIGIN` pointing back at the frontend's URL for CORS. Missing either one is the #1 cause of a blank/white home page in production.
-
 ## Security notes
 
 - Passwords are hashed with bcrypt; sessions use JWT.

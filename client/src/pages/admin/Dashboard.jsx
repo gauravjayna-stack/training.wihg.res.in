@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api, { fileUrl, BACKEND_ORIGIN } from '../../api';
+import api from '../../api';
 import StatusBadge from '../../components/StatusBadge.jsx';
 
 export default function AdminDashboard() {
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
               <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
             ))}
           </select>
-          <a href={`${BACKEND_ORIGIN}/api/admin/export.csv?token=${encodeURIComponent(localStorage.getItem('wihg_token') || '')}`} className="text-sm text-wihg-navy underline">Export CSV</a>
+          <a href="/api/admin/export.csv" className="text-sm text-wihg-navy underline">Export CSV</a>
         </div>
       </section>
 
@@ -143,7 +143,7 @@ export default function AdminDashboard() {
                 <button disabled={busyId === app.id} onClick={() => generateCertificate(app)} className="bg-wihg-navy text-white px-3 py-1.5 rounded font-medium disabled:opacity-50">Generate Certificate</button>
               )}
               {app.certificate?.pdfPath && (
-                <a href={fileUrl(app.certificate.pdfPath)} target="_blank" rel="noreferrer" className="text-green-700 underline self-center">View Certificate</a>
+                <a href={app.certificate.pdfPath} target="_blank" rel="noreferrer" className="text-green-700 underline self-center">View Certificate</a>
               )}
             </div>
           </div>

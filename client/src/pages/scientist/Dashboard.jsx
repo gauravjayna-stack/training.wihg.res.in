@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api, { fileUrl } from '../../api';
+import api from '../../api';
 import StatusBadge from '../../components/StatusBadge.jsx';
 
 export default function ScientistDashboard() {
@@ -72,7 +72,7 @@ export default function ScientistDashboard() {
                 <p className="font-medium">{app.student.name} — {app.type}</p>
                 <p className="text-xs text-gray-500">{app.topic}</p>
                 {app.certificate?.reportFilePath && (
-                  <a href={fileUrl(app.certificate.reportFilePath)} target="_blank" rel="noreferrer" className="text-xs text-wihg-navy underline">View final report</a>
+                  <a href={app.certificate.reportFilePath} target="_blank" rel="noreferrer" className="text-xs text-wihg-navy underline">View final report</a>
                 )}
               </div>
               <button disabled={busyId === app.id || app.certificate?.scientistSignoff} onClick={() => signOff(app)}

@@ -9,10 +9,7 @@ export default function Landing() {
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
-    api
-      .get('/scientists')
-      .then((res) => setScientists(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setScientists([]));
+    api.get('/scientists').then((res) => setScientists(res.data)).catch(() => {});
   }, []);
 
   const grouped = scientists.reduce((acc, s) => {

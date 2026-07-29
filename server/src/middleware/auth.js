@@ -6,10 +6,7 @@ const jwt = require('jsonwebtoken');
  */
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
-  let token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  // Plain <a href> downloads (e.g. CSV export) can't set an Authorization
-  // header, so also accept the token as a query param for those routes.
-  if (!token && req.query.token) token = req.query.token;
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Authentication required.' });
 
   try {

@@ -1,43 +1,61 @@
 // WIHG Internship & Dissertation Management System
-// Datasource: PostgreSQL (Render "wihg-database" or any Postgres instance).
-// Set DATABASE_URL to your Postgres connection string (see DEPLOYMENT_LINUX.md).
-//
-// NOTE: fields that would normally be Prisma `enum` types are plain String
-// here instead. This isn't required on Postgres (which does support enums),
-// but keeping it this way means this same schema also works unmodified on
-// SQLite for local/offline dev. Valid values are documented in comments and
-// enforced in the API layer (zod schemas / explicit checks in route
-// handlers), not by the database itself.
+// Default datasource is SQLite for zero-config local/dev use.
+// For production on Postgres, change provider to "postgresql" and set DATABASE_URL
+// to a postgres connection string (see DEPLOYMENT_LINUX.md).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-// Role: ADMIN | ACCOUNTS | SCIENTIST | STUDENT
-// ApplicationType: INTERNSHIP | DISSERTATION
-// ApplicationStatus: PENDING_APPROVAL | FEE_PAYMENT_NEEDED | VERIFICATION_PENDING |
-//   APPROVED_FOR_JOINING | ONBOARDED | IN_PROGRESS | COMPLETION_PENDING |
-//   CERTIFICATE_READY | REJECTED
-// PaymentStatus: PENDING | VERIFIED | REJECTED
+enum Role {
+  ADMIN
+  ACCOUNTS
+  SCIENTIST
+  STUDENT
+}
+
+enum ApplicationType {
+  INTERNSHIP
+  DISSERTATION
+}
+
+enum ApplicationStatus {
+  PENDING_SCIENTIST      // waiting on scientist pre-contact response (optional stage)
+  PENDING_APPROVAL       // submitted, waiting on Admin/Training Cell approval
+  FEE_PAYMENT_NEEDED     // approved, student must pay
+  VERIFICATION_PENDING   // payment submitted, waiting on Accounts verification
+  APPROVED_FOR_JOINING   // fee verified (or waived), can submit joining form
+  ONBOARDED              // joining form submitted & verified
+  IN_PROGRESS            // physically joined, tenure ongoing
+  COMPLETION_PENDING     // student requested certificate, awaiting scientist sign-off
+  CERTIFICATE_READY      // admin approved, certificate generated
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
 
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
-  role         String // ADMIN | ACCOUNTS | SCIENTIST | STUDENT
+  role         Role
   name         String
   phone        String?
   department   String?
   createdAt    DateTime @default(now())
 
-  scientist        Scientist?
-  applications     Application[] @relation("StudentApplications")
-  verifiedPayments Payment[]     @relation("VerifiedBy")
+  scientist    Scientist?
+  applications Application[]      @relation("StudentApplications")
+  verifiedPayments Payment[]      @relation("VerifiedBy")
 }
 
 model Scientist {
@@ -52,65 +70,65 @@ model Scientist {
 }
 
 model Application {
-  id                  String    @id @default(cuid())
+  id                  String            @id @default(cuid())
   studentId           String
-  student             User      @relation("StudentApplications", fields: [studentId], references: [id])
-  type                String // INTERNSHIP | DISSERTATION
+  student             User              @relation("StudentApplications", fields: [studentId], references: [id])
+  type                ApplicationType
   scientistId         String?
-  scientist           Scientist? @relation(fields: [scientistId], references: [id])
-  autoAssignRequested Boolean   @default(false)
-  status              String    @default("PENDING_APPROVAL")
+  scientist           Scientist?        @relation(fields: [scientistId], references: [id])
+  autoAssignRequested  Boolean          @default(false)
+  status              ApplicationStatus @default(PENDING_APPROVAL)
   collegeName         String
   topic               String?
   durationMonths      Int
   startDate           DateTime?
   endDate             DateTime?
-  feeWaived           Boolean   @default(false)
-  waiverReason        String?
-  rejectionReason     String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  feeWaived           Boolean           @default(false)
+  waiverReason         String?
+  rejectionReason      String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
-  payment     Payment?
-  joining     JoiningRecord?
-  certificate Certificate?
+  payment      Payment?
+  joining      JoiningRecord?
+  certificate  Certificate?
 }
 
 model Payment {
-  id            String    @id @default(cuid())
-  applicationId String    @unique
-  application   Application @relation(fields: [applicationId], references: [id])
-  utrNumber     String
-  receiptFile   String
-  amount        Float
-  status        String    @default("PENDING") // PENDING | VERIFIED | REJECTED
-  verifiedById  String?
-  verifiedBy    User?     @relation("VerifiedBy", fields: [verifiedById], references: [id])
-  verifiedAt    DateTime?
-  createdAt     DateTime  @default(now())
+  id                 String        @id @default(cuid())
+  applicationId       String        @unique
+  application         Application  @relation(fields: [applicationId], references: [id])
+  utrNumber           String
+  receiptFile         String
+  amount              Float
+  status              PaymentStatus @default(PENDING)
+  verifiedById        String?
+  verifiedBy          User?         @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt          DateTime?
+  createdAt           DateTime      @default(now())
 }
 
 model JoiningRecord {
-  id                         String   @id @default(cuid())
+  id                        String    @id @default(cuid())
   applicationId              String   @unique
   application                Application @relation(fields: [applicationId], references: [id])
   joiningDate                DateTime
-  physicalVerificationStatus String   @default("PENDING") // PENDING | VERIFIED
+  physicalVerificationStatus String    @default("PENDING") // PENDING | VERIFIED
   idProofFile                String?
-  feeReceiptFile             String?
+  feeReceiptFile              String?
   createdAt                  DateTime @default(now())
 }
 
 model Certificate {
-  id                String   @id @default(cuid())
-  applicationId     String   @unique
-  application       Application @relation(fields: [applicationId], references: [id])
-  uniqueCertNo      String   @unique
-  issueDate         DateTime @default(now())
-  qrCodeUrl         String
-  pdfPath           String?
-  reportFilePath    String?
-  scientistSignoff  Boolean  @default(false)
-  adminApproved     Boolean  @default(false)
-  feedbackSubmitted Boolean  @default(false)
+  id             String   @id @default(cuid())
+  applicationId  String   @unique
+  application    Application @relation(fields: [applicationId], references: [id])
+  uniqueCertNo   String   @unique
+  issueDate      DateTime @default(now())
+  qrCodeUrl      String
+  pdfPath        String?
+  reportFilePath String?
+  scientistSignoff Boolean @default(false)
+  adminApproved    Boolean @default(false)
+  feedbackSubmitted Boolean @default(false)
 }
