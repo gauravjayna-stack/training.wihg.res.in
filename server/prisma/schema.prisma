@@ -1,22 +1,20 @@
 // WIHG Internship & Dissertation Management System
-// Default datasource is SQLite for zero-config local/dev use.
-// For production on Postgres, change provider to "postgresql" and set DATABASE_URL
-// to a postgres connection string (see DEPLOYMENT_LINUX.md).
+// Datasource: PostgreSQL (Render "wihg-database" or any Postgres instance).
+// Set DATABASE_URL to your Postgres connection string (see DEPLOYMENT_LINUX.md).
 //
-// NOTE: SQLite's Prisma connector does not support native `enum` types at
-// all (even just declaring one fails schema validation), so every field
-// that would otherwise be an enum is a plain String here. Valid values are
-// documented in comments and enforced in the API layer (zod schemas /
-// explicit checks in the route handlers), not by the database itself.
-// If you switch provider to "postgresql", you can optionally convert these
-// back to real `enum` types for stronger DB-level guarantees.
+// NOTE: fields that would normally be Prisma `enum` types are plain String
+// here instead. This isn't required on Postgres (which does support enums),
+// but keeping it this way means this same schema also works unmodified on
+// SQLite for local/offline dev. Valid values are documented in comments and
+// enforced in the API layer (zod schemas / explicit checks in route
+// handlers), not by the database itself.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
