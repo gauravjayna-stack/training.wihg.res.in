@@ -21,10 +21,10 @@ export default function AdminDashboard() {
       api.get('/admin/scientists'),
     ])
       .then(([a, apps, sci]) => {
-        setAnalytics(a.data);
-        setApplications(apps.data);
-        setScientists(sci.data);
-      })
+  setAnalytics(a.data);
+  setApplications(Array.isArray(apps.data) ? apps.data : []);
+  setScientists(Array.isArray(sci.data) ? sci.data : []);
+})
       .finally(() => setLoading(false));
   }
   useEffect(load, [statusFilter]);
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
           <StatCard label="Internships" value={analytics.totalInterns} />
           <StatCard label="Dissertations" value={analytics.totalDissertations} />
           <StatCard label="Scientists" value={scientists.length} />
-          <StatCard label="Total Applications" value={analytics.byStatus.reduce((s, x) => s + x.count, 0)} />
+          <StatCard label="Total Applications" value={Array.isArray(analytics?.byStatus) ? analytics.byStatus.reduce((s, x) => s + x.count,0) : 0} />
         </section>
       )}
 
