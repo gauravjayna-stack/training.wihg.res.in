@@ -1,0 +1,38 @@
+const jwt = require('jsonwebtoken');
+
+/**
+ * Verifies the Bearer JWT on the request and attaches { id, role, email }
+ * to req.user. Rejects with 401 if missing/invalid/expired.
+ */
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  let token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  // Plain <a href> downloads (e.g. CSV export) can't set an Authorization
+  // header, so also accept the token as a query param for those routes.
+  if (!token && req.query.token) token = req.query.token;
+  if (!token) return res.status(401).json({ error: 'Authentication required.' });
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired session. Please log in again.' });
+  }
+}
+
+/**
+ * Restricts a route to one or more roles. Must run after requireAuth.
+ * Usage: requireRole('ADMIN', 'ACCOUNTS')
+ */
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required.' });
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'You do not have permission to perform this action.' });
+    }
+    next();
+  };
+}
+
+module.exports = { requireAuth, requireRole };
