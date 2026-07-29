@@ -9,14 +9,19 @@ export default function Landing() {
   const [feedback, setFeedback] = useState(null);
 
   useEffect(() => {
-    api.get('/scientists').then((res) => setScientists(res.data)).catch(() => {});
-  }, []);
+  api.get('/scientists')
+    .then((res) => setScientists(Array.isArray(res.data) ? res.data : []))
+    .catch(() => setScientists([]));
+}, []);
 
-  const grouped = scientists.reduce((acc, s) => {
-    acc[s.specialization] = acc[s.specialization] || [];
-    acc[s.specialization].push(s);
-    return acc;
-  }, {});
+  //  SAFE: Ensures scientists is an array before calling reduce
+const grouped = Array.isArray(scientists)
+  ? scientists.reduce((acc, s) => {
+      acc[s.specialization] = acc[s.specialization] || [];
+      acc[s.specialization].push(s);
+      return acc;
+    }, {})
+  : {};
 
   async function sendInquiry(e) {
     e.preventDefault();
