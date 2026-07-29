@@ -15,7 +15,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("postgresql://wihg_user:WcNxcPCKtsBF2aAi9qNzIDLA7lBwYuJf@dpg-d9k80amgekts73chl3l0-a/wihg_db")
+  url      = env("DATABASE_URL")
 }
 
 // Role: ADMIN | ACCOUNTS | SCIENTIST | STUDENT
