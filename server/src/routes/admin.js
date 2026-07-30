@@ -34,8 +34,7 @@ router.get('/applications', async (req, res) => {
   }
 });
 
-// Approve or reject a pending application (only used when no scientist
-// decision is required, e.g. auto-allocation path, or Admin override).
+// Approve or reject a pending application
 router.patch('/applications/:id/decision', async (req, res) => {
   try {
     const { decision, note } = req.body || {};
@@ -112,7 +111,7 @@ router.patch('/applications/:id/waiver', async (req, res) => {
   }
 });
 
-// Global analytics dashboard (PostgreSQL safe query)
+// Global analytics dashboard
 router.get('/analytics', async (req, res) => {
   try {
     const [totalInterns, totalDissertations, byStatus, byDiscipline] = await Promise.all([
@@ -126,12 +125,19 @@ router.get('/analytics', async (req, res) => {
 
     let byYear = [];
     try {
-      // PostgreSQL compatible date query
+      // PostgreSQL compatible query
       byYear = await prisma.$queryRawUnsafe(
         `SELECT TO_CHAR("createdAt", 'YYYY') as year, COUNT(*)::int as count FROM "Application" GROUP BY year ORDER BY year DESC`
       );
     } catch (e) {
-      console.warn('Raw SQL analytics query skipped:', e.message);
+      try {
+        byYear = await prisma.$queryRawUnsafe(
+          `SELECT TO_CHAR(created_at, 'YYYY') as year, COUNT(*)::int as count FROM application GROUP BY year ORDER BY year DESC`
+        );
+      } catch (err) {
+        console.warn('Analytics year aggregation fallback skipped:', err.message);
+        byYear = [];
+      }
     }
 
     res.json({
