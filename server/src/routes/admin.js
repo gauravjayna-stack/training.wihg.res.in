@@ -168,13 +168,13 @@ router.get('/settings', (req, res) => {
   });
 });
 
-// CSV export
+// Safe CSV export with optional queries and null checks
 router.get('/export.csv', async (req, res) => {
   try {
     const { year, discipline, supervisor, feeStatus } = req.query;
     const where = {};
     if (discipline) where.scientist = { specialization: discipline };
-    if (supervisor) where.scientist = { ...where.scientist, name: supervisor };
+    if (supervisor && where.scientist) where.scientist.name = supervisor;
     if (feeStatus) where.payment = { status: feeStatus };
 
     let applications = await prisma.application.findMany({
@@ -182,7 +182,10 @@ router.get('/export.csv', async (req, res) => {
       include: { student: true, scientist: true, payment: true },
       orderBy: { createdAt: 'desc' },
     });
-    if (year) applications = applications.filter((a) => new Date(a.createdAt).getFullYear().toString() === year);
+
+    if (year) {
+      applications = applications.filter((a) => new Date(a.createdAt).getFullYear().toString() === year);
+    }
 
     const header = 'Student Name,Email,Type,College,Scientist,Status,Fee Status,Fee Waived,Start Date,End Date\n';
     const rows = applications
@@ -190,10 +193,10 @@ router.get('/export.csv', async (req, res) => {
         [
           a.student?.name || 'N/A',
           a.student?.email || 'N/A',
-          a.type,
-          a.collegeName,
+          a.type || '',
+          a.collegeName || '',
           a.scientist?.name || 'Unassigned',
-          a.status,
+          a.status || '',
           a.payment?.status || 'N/A',
           a.feeWaived ? 'YES' : 'NO',
           a.startDate ? new Date(a.startDate).toISOString().slice(0, 10) : '',
@@ -206,7 +209,7 @@ router.get('/export.csv', async (req, res) => {
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="wihg_applications_export.csv"');
-    res.send(header + rows);
+    res.status(200).send(header + rows);
   } catch (error) {
     console.error('Export CSV error:', error);
     res.status(500).send('Failed to generate CSV export');
