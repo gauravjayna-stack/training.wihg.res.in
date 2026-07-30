@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api, { fileUrl, BACKEND_ORIGIN } from '../../api';
 import StatusBadge from '../../components/StatusBadge.jsx';
 
-export default function AdminDashboard() {
+export default function Dashboard() {
   const [analytics, setAnalytics] = useState(null);
   const [applications, setApplications] = useState([]);
   const [scientists, setScientists] = useState([]);
@@ -35,6 +35,7 @@ export default function AdminDashboard() {
   }
   useEffect(load, [statusFilter]);
 
+  // Safe CSV export attaching Bearer token
   async function handleExportCSV() {
     setExporting(true);
     try {
@@ -166,7 +167,7 @@ export default function AdminDashboard() {
             type="button"
             onClick={handleExportCSV} 
             disabled={exporting}
-            className="text-sm text-wihg-navy underline cursor-pointer bg-transparent border-0 disabled:opacity-50"
+            className="text-sm text-wihg-navy underline cursor-pointer bg-transparent border-0 disabled:opacity-50 font-medium"
           >
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
@@ -178,7 +179,7 @@ export default function AdminDashboard() {
         {applications.map((app) => (
           <div key={app.id} className="bg-white shadow rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="font-medium">{app.student.name} — {app.type}</p>
+              <p className="font-medium">{app.student?.name} — {app.type}</p>
               <StatusBadge status={app.status} />
             </div>
             <p className="text-xs text-gray-500 mb-3">
