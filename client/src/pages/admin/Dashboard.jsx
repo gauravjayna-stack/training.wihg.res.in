@@ -249,7 +249,7 @@ export default function Dashboard() {
           </form>
         )}
       </section>
-    </div>
+    </div> 
   );
 }
 
