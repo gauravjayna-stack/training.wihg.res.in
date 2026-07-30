@@ -57,19 +57,27 @@ router.get('/mine', requireAuth, requireRole('STUDENT'), async (req, res) => {
 
 // Fetch a single application — accessible to the owning student, the
 // assigned scientist, or staff roles.
-router.get('/:id', requireAuth, async (req, res) => {
-  const app = await prisma.application.findUnique({
-    where: { id: req.params.id },
-    include: { student: true, scientist: true, payment: true, joining: true, certificate: true },
-  });
-  if (!app) return res.status(404).json({ error: 'Application not found.' });
+router.get('/', async (req, res) => {
+  try {
+    const { status } = req.query;
+    
+    // Build filter condition
+    const where = (status && status !== 'ALL') ? { status } : {};
 
-  const isOwner = app.studentId === req.user.id;
-  const isStaff = ['ADMIN', 'ACCOUNTS'].includes(req.user.role);
-  const isMentor = req.user.role === 'SCIENTIST';
-  if (!isOwner && !isStaff && !isMentor) return res.status(403).json({ error: 'Not authorized to view this application.' });
+    const applications = await prisma.application.findMany({
+      where,
+      include: {
+        scientist: true,
+        // Safely include relations defined in your schema
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-  res.json(app);
+    res.json(applications);
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    res.status(500).json({ error: 'Failed to fetch applications' });
+  }
 });
 
 // SCIENTIST: approve/disapprove a request that was directed to them.
