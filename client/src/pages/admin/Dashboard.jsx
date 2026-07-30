@@ -9,6 +9,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [exporting, setExporting] = useState(false);
   const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', role: 'SCIENTIST', specialization: '', availableSeats: 2, designation: '' });
   const [staffMsg, setStaffMsg] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -33,6 +34,37 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   }
   useEffect(load, [statusFilter]);
+
+  async function handleExportCSV() {
+    setExporting(true);
+    try {
+      const token = localStorage.getItem('wihg_token') || localStorage.getItem('token');
+      const response = await fetch(`${BACKEND_ORIGIN}/api/admin/export.csv`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Authentication or export failed on server.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'wihg_applications_export.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || 'Failed to export CSV.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function decide(app, decision) {
     setBusyId(app.id);
@@ -130,7 +162,14 @@ export default function AdminDashboard() {
               <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
             ))}
           </select>
-          <a href={`${BACKEND_ORIGIN}/api/admin/export.csv?token=${encodeURIComponent(localStorage.getItem('wihg_token') || '')}`} className="text-sm text-wihg-navy underline">Export CSV</a>
+          <button 
+            type="button"
+            onClick={handleExportCSV} 
+            disabled={exporting}
+            className="text-sm text-wihg-navy underline cursor-pointer bg-transparent border-0 disabled:opacity-50"
+          >
+            {exporting ? 'Exporting…' : 'Export CSV'}
+          </button>
         </div>
       </section>
 
