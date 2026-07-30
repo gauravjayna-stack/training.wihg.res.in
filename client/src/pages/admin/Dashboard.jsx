@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../../api';
+import api, { fileUrl, BACKEND_ORIGIN } from '../../api';
 import StatusBadge from '../../components/StatusBadge.jsx';
 
 export default function AdminDashboard() {
@@ -9,8 +9,11 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', role: 'SCIENTIST', specialization: '', availableSeats: 2 });
+  const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '', role: 'SCIENTIST', specialization: '', availableSeats: 2, designation: '' });
   const [staffMsg, setStaffMsg] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [settingsMsg, setSettingsMsg] = useState(null);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   function load() {
     setLoading(true);
@@ -19,12 +22,14 @@ export default function AdminDashboard() {
       api.get('/admin/analytics'),
       api.get(`/admin/applications${q}`),
       api.get('/admin/scientists'),
+      api.get('/admin/settings'),
     ])
-      .then(([a, apps, sci]) => {
-  setAnalytics(a.data);
-  setApplications(Array.isArray(apps.data) ? apps.data : []);
-  setScientists(Array.isArray(sci.data) ? sci.data : []);
-})
+      .then(([a, apps, sci, set]) => {
+        setAnalytics(a.data);
+        setApplications(apps.data);
+        setScientists(sci.data);
+        setSettings(set.data);
+      })
       .finally(() => setLoading(false));
   }
   useEffect(load, [statusFilter]);
@@ -81,10 +86,25 @@ export default function AdminDashboard() {
     try {
       await api.post('/admin/users', newStaff);
       setStaffMsg({ ok: true, msg: 'Account created.' });
-      setNewStaff({ name: '', email: '', password: '', role: 'SCIENTIST', specialization: '', availableSeats: 2 });
+      setNewStaff({ name: '', email: '', password: '', role: 'SCIENTIST', specialization: '', availableSeats: 2, designation: '' });
       load();
     } catch (err) {
       setStaffMsg({ ok: false, msg: err.response?.data?.error || 'Failed to create account.' });
+    }
+  }
+
+  async function saveSettings(e) {
+    e.preventDefault();
+    setSavingSettings(true);
+    setSettingsMsg(null);
+    try {
+      const { data } = await api.put('/admin/settings', settings);
+      setSettings(data);
+      setSettingsMsg({ ok: true, msg: 'Saved — new certificates will use these signatories.' });
+    } catch (err) {
+      setSettingsMsg({ ok: false, msg: err.response?.data?.error || 'Failed to save.' });
+    } finally {
+      setSavingSettings(false);
     }
   }
 
@@ -97,7 +117,7 @@ export default function AdminDashboard() {
           <StatCard label="Internships" value={analytics.totalInterns} />
           <StatCard label="Dissertations" value={analytics.totalDissertations} />
           <StatCard label="Scientists" value={scientists.length} />
-          <StatCard label="Total Applications" value={Array.isArray(analytics?.byStatus) ? analytics.byStatus.reduce((s, x) => s + x.count,0) : 0} />
+          <StatCard label="Total Applications" value={analytics.byStatus.reduce((s, x) => s + x.count, 0)} />
         </section>
       )}
 
@@ -110,7 +130,7 @@ export default function AdminDashboard() {
               <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
             ))}
           </select>
-          <a href="/api/admin/export.csv" className="text-sm text-wihg-navy underline">Export CSV</a>
+          <a href={`${BACKEND_ORIGIN}/api/admin/export.csv?token=${encodeURIComponent(localStorage.getItem('wihg_token') || '')}`} className="text-sm text-wihg-navy underline">Export CSV</a>
         </div>
       </section>
 
@@ -143,7 +163,7 @@ export default function AdminDashboard() {
                 <button disabled={busyId === app.id} onClick={() => generateCertificate(app)} className="bg-wihg-navy text-white px-3 py-1.5 rounded font-medium disabled:opacity-50">Generate Certificate</button>
               )}
               {app.certificate?.pdfPath && (
-                <a href={app.certificate.pdfPath} target="_blank" rel="noreferrer" className="text-green-700 underline self-center">View Certificate</a>
+                <a href={fileUrl(app.certificate.pdfPath)} target="_blank" rel="noreferrer" className="text-green-700 underline self-center">View Certificate</a>
               )}
             </div>
           </div>
@@ -165,11 +185,29 @@ export default function AdminDashboard() {
             <>
               <input placeholder="Specialization" className="border rounded px-3 py-2 text-sm" value={newStaff.specialization} onChange={(e) => setNewStaff({ ...newStaff, specialization: e.target.value })} />
               <input type="number" placeholder="Available seats" className="border rounded px-3 py-2 text-sm" value={newStaff.availableSeats} onChange={(e) => setNewStaff({ ...newStaff, availableSeats: Number(e.target.value) })} />
+              <input placeholder="Designation (e.g. Scientist-C) — shown on certificates" className="border rounded px-3 py-2 text-sm sm:col-span-2" value={newStaff.designation} onChange={(e) => setNewStaff({ ...newStaff, designation: e.target.value })} />
             </>
           )}
           <button className="sm:col-span-2 bg-wihg-navy text-white rounded py-2 text-sm font-medium">Create Account</button>
           {staffMsg && <p className={`sm:col-span-2 text-xs ${staffMsg.ok ? 'text-green-700' : 'text-red-700'}`}>{staffMsg.msg}</p>}
         </form>
+      </section>
+
+      <section>
+        <h2 className="font-semibold text-lg mb-1">Certificate Signatories</h2>
+        <p className="text-xs text-gray-500 mb-3">These names appear on every generated certificate as Coordinator and Director. The Supervisor line is filled automatically from the assigned scientist.</p>
+        {settings && (
+          <form onSubmit={saveSettings} className="bg-white shadow rounded-lg p-4 grid sm:grid-cols-2 gap-3">
+            <input placeholder="Coordinator name" className="border rounded px-3 py-2 text-sm" value={settings.coordinatorName || ''} onChange={(e) => setSettings({ ...settings, coordinatorName: e.target.value })} />
+            <input placeholder="Coordinator designation" className="border rounded px-3 py-2 text-sm" value={settings.coordinatorDesignation || ''} onChange={(e) => setSettings({ ...settings, coordinatorDesignation: e.target.value })} />
+            <input placeholder="Director name" className="border rounded px-3 py-2 text-sm" value={settings.directorName || ''} onChange={(e) => setSettings({ ...settings, directorName: e.target.value })} />
+            <input placeholder="Director designation" className="border rounded px-3 py-2 text-sm" value={settings.directorDesignation || ''} onChange={(e) => setSettings({ ...settings, directorDesignation: e.target.value })} />
+            <button disabled={savingSettings} className="sm:col-span-2 bg-wihg-navy text-white rounded py-2 text-sm font-medium disabled:opacity-50">
+              {savingSettings ? 'Saving…' : 'Save Signatories'}
+            </button>
+            {settingsMsg && <p className={`sm:col-span-2 text-xs ${settingsMsg.ok ? 'text-green-700' : 'text-red-700'}`}>{settingsMsg.msg}</p>}
+          </form>
+        )}
       </section>
     </div>
   );
