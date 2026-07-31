@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -40,6 +40,8 @@ export default function JoiningForm() {
   // File Enclosures & Previews
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [signature, setSignature] = useState(null);
+  const [signaturePreview, setSignaturePreview] = useState(null);
   const [collegeId, setCollegeId] = useState(null);
   const [idProof, setIdProof] = useState(null);
   const [feeReceipt, setFeeReceipt] = useState(null);
@@ -72,12 +74,21 @@ export default function JoiningForm() {
       .finally(() => setLoading(false));
   }, [applicationId]);
 
-  // Handle Photo selection & Local Preview URL
+  // Handle Photo Selection & Preview
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setPhoto(file);
       setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // Handle Signature Upload & Preview (.jpg / .jpeg / .png)
+  const handleSignatureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSignature(file);
+      setSignaturePreview(URL.createObjectURL(file));
     }
   };
 
@@ -128,8 +139,8 @@ export default function JoiningForm() {
       setErrorMsg('Please read and accept the declaration before proceeding.');
       return false;
     }
-    if (!photo || !collegeId || !idProof || !feeReceipt) {
-      setErrorMsg('All 4 mandatory enclosures (Photo, College ID, Identity Proof, Fee Receipt) are required.');
+    if (!photo || !signature || !collegeId || !idProof || !feeReceipt) {
+      setErrorMsg('All mandatory enclosures (Photo, Signature Attachment, College ID, Identity Proof, Fee Receipt) are required.');
       return false;
     }
     setErrorMsg('');
@@ -163,7 +174,9 @@ export default function JoiningForm() {
       formData.append('durationTo', durationTo);
       formData.append('declarationAccepted', declarationAccepted);
 
+      // Attach Files
       formData.append('photo', photo);
+      formData.append('signature', signature);
       formData.append('collegeId', collegeId);
       formData.append('idProof', idProof);
       formData.append('feeReceipt', feeReceipt);
@@ -213,7 +226,7 @@ export default function JoiningForm() {
         )}
 
         <form onSubmit={handleOpenPreview} className="space-y-6">
-          {/* Form Fields */}
+          {/* Section 1: Form Fields */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Enrolment No. (Auto-generated)</label>
@@ -365,7 +378,7 @@ export default function JoiningForm() {
             ></textarea>
           </div>
 
-          {/* Duration Section */}
+          {/* Section 2: Duration */}
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
             <h3 className="text-sm font-bold text-slate-800">
               Duration Period ({appType === 'INTERNSHIP' ? 'Allowed: 1 to 3 Months' : 'Allowed: 1 to 6 Months'})
@@ -409,7 +422,7 @@ export default function JoiningForm() {
             {durationError && <p className="text-xs text-red-600 font-medium">{durationError}</p>}
           </div>
 
-          {/* Declaration */}
+          {/* Section 3: Declaration */}
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -426,24 +439,39 @@ export default function JoiningForm() {
             </label>
           </div>
 
-          {/* Mandatory Enclosures */}
+          {/* Section 4: Mandatory Enclosures */}
           <div className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-800 border-b pb-2">Mandatory Enclosures</h3>
+            <h3 className="text-sm font-bold text-slate-800 border-b pb-2">Mandatory Enclosures & Uploads</h3>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="border rounded-lg p-3 bg-white">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">📷 Passport-size Photograph *</label>
+              {/* Passport Photo */}
+              <div className="border rounded-lg p-3 bg-white space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">📷 Passport-size Photograph (.jpg/.png) *</label>
                 <input
                   type="file"
                   required
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png"
                   onChange={handlePhotoChange}
                   className="text-xs w-full text-slate-600"
                 />
               </div>
 
-              <div className="border rounded-lg p-3 bg-white">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">1. Photocopy of University/College/School ID Card *</label>
+              {/* Signature Upload in JPG Format */}
+              <div className="border rounded-lg p-3 bg-white space-y-1 border-blue-200 bg-blue-50/30">
+                <label className="block text-xs font-semibold text-slate-800">✍️ Student Signature Image (.jpg / .jpeg) *</label>
+                <input
+                  type="file"
+                  required
+                  accept="image/jpeg,image/jpg,image/png"
+                  onChange={handleSignatureChange}
+                  className="text-xs w-full text-slate-600"
+                />
+                <p className="text-[10px] text-slate-500">Upload a clear photo/scan of your signature on white paper.</p>
+              </div>
+
+              {/* College ID */}
+              <div className="border rounded-lg p-3 bg-white space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">1. Photocopy of University/College ID Card *</label>
                 <input
                   type="file"
                   required
@@ -453,8 +481,9 @@ export default function JoiningForm() {
                 />
               </div>
 
-              <div className="border rounded-lg p-3 bg-white">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">2. Photocopy of Identity Proof (Aadhaar / Passport / Voter ID) *</label>
+              {/* ID Proof */}
+              <div className="border rounded-lg p-3 bg-white space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">2. Photocopy of Identity Proof (Aadhaar / Passport) *</label>
                 <input
                   type="file"
                   required
@@ -464,8 +493,9 @@ export default function JoiningForm() {
                 />
               </div>
 
-              <div className="border rounded-lg p-3 bg-white">
-                <label className="block text-xs font-semibold text-slate-700 mb-1">3. Photocopy of Fee Receipt *</label>
+              {/* Fee Receipt */}
+              <div className="border sm:col-span-2 rounded-lg p-3 bg-white space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">3. Photocopy of Fee Receipt *</label>
                 <input
                   type="file"
                   required
@@ -558,7 +588,7 @@ export default function JoiningForm() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="border border-slate-800 px-1 text-xs">{appType === 'DISSERTATION' ? '✓' : ' '}</span>
-                  <span>Dissertation Work</span>[cite: 8]
+                  <span>Dissertation Work</span>
                 </div>
               </div>
 
@@ -567,59 +597,66 @@ export default function JoiningForm() {
                 <div className="col-span-3 space-y-2 text-xs">
                   <div>
                     <strong className="w-44 inline-block">Name (in Block Letters):</strong>
-                    <span className="uppercase font-semibold underline">{name}</span>[cite: 8]
+                    <span className="uppercase font-semibold underline">{name}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Father's/Mother's Name:</strong>
-                    <span className="underline">{fatherName}</span>[cite: 8]
+                    <span className="underline">{fatherName}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Date of Birth:</strong>
-                    <span className="underline">{dob}</span>[cite: 8]
+                    <span className="underline">{dob}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Gender:</strong>
-                    <span className="underline">{gender}</span>[cite: 8]
+                    <span className="underline">{gender}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">University/College/Institute:</strong>
-                    <span className="underline">{collegeName}</span>[cite: 8]
+                    <span className="underline">{collegeName}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Nationality:</strong>
-                    <span className="underline">{nationality}</span>[cite: 8]
+                    <span className="underline">{nationality}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Aadhaar No.:</strong>
-                    <span className="underline">{aadhaarNo}</span>[cite: 8]
+                    <span className="underline">[Aadhaar Redacted]</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Emergency Contact No.:</strong>
-                    <span className="underline">{emergencyContact}</span>[cite: 8]
+                    <span className="underline">{emergencyContact}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">E-mail:</strong>
-                    <span className="underline">{email}</span>[cite: 8]
+                    <span className="underline">{email}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block">Mobile No.:</strong>
-                    <span className="underline">{phone}</span>[cite: 8]
+                    <span className="underline">{phone}</span>
                   </div>
                   <div>
                     <strong className="w-44 inline-block align-top">Permanent Address:</strong>
-                    <span className="underline inline-block w-64 leading-tight">{address}</span>[cite: 8]
+                    <span className="underline inline-block w-64 leading-tight">{address}</span>
                   </div>
                 </div>
 
-                {/* Photo Box with Signature Placeholder */}
+                {/* Photo Box with Uploaded Signature Embedded */}
                 <div className="col-span-1 flex flex-col items-center">
-                  <div className="w-28 h-36 border-2 border-slate-800 flex flex-col items-center justify-center p-1 text-center bg-slate-50 overflow-hidden relative">
+                  <div className="w-28 h-36 border-2 border-slate-800 flex flex-col items-center justify-between p-1 text-center bg-slate-50 overflow-hidden relative">
                     {photoPreview ? (
-                      <img src={photoPreview} alt="Student Photo" className="w-full h-full object-cover" />
+                      <img src={photoPreview} alt="Student Photo" className="w-full h-24 object-cover" />
                     ) : (
-                      <p className="text-[10px] text-slate-500 leading-tight">
-                        affix recent passport size colour photograph with signature[cite: 8]
+                      <p className="text-[10px] text-slate-500 leading-tight my-auto">
+                        affix recent passport size colour photograph with signature
                       </p>
+                    )}
+                    
+                    {/* Embedded Uploaded Signature image overlay under photo */}
+                    {signaturePreview && (
+                      <div className="w-full border-t border-slate-400 bg-white/90 pt-0.5">
+                        <img src={signaturePreview} alt="Uploaded Signature" className="h-6 object-contain mx-auto" />
+                      </div>
                     )}
                   </div>
                   <span className="text-[10px] text-slate-600 mt-1 font-sans italic text-center">
@@ -631,71 +668,76 @@ export default function JoiningForm() {
               {/* Declaration Statement */}
               <div className="text-[11px] text-justify leading-tight border-t border-b border-slate-300 py-2 my-2 italic">
                 I hereby declare that the information furnished by me in this form is true and correct to the best of my knowledge and belief.
-                I undertake to abide by all rules, regulations, safety instructions and disciplinary requirements of the Wadia Institute of Himalayan Geology during the period of my Internship / Dissertation Work.[cite: 8]
+                I undertake to abide by all rules, regulations, safety instructions and disciplinary requirements of the Wadia Institute of Himalayan Geology during the period of my Internship / Dissertation Work.
               </div>
 
               {/* Duration Row */}
               <div className="text-xs font-semibold flex justify-between border-b pb-2">
                 <div>
-                  Duration: From <span className="underline">{durationFrom}</span> To <span className="underline">{durationTo}</span>[cite: 8]
+                  Duration: From <span className="underline">{durationFrom}</span> To <span className="underline">{durationTo}</span>
                 </div>
                 <div>
-                  Total Duration: <span className="underline">{totalMonthsText}</span>[cite: 8]
+                  Total Duration: <span className="underline">{totalMonthsText}</span>
                 </div>
               </div>
 
               {/* Signatures Row */}
-              <div className="pt-6 flex justify-between items-end text-xs">
-                <div className="text-center">
+              <div className="pt-4 flex justify-between items-end text-xs">
+                <div className="text-center flex flex-col items-center">
+                  {signaturePreview ? (
+                    <img src={signaturePreview} alt="Student Signature" className="h-10 object-contain mb-1" />
+                  ) : (
+                    <div className="h-10"></div>
+                  )}
                   <div className="border-t border-slate-800 w-48 pt-1 font-bold">
-                    Student Signature with Date[cite: 8]
+                    Student Signature with Date
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="border-t border-slate-800 w-52 pt-1 font-bold">
-                    Signature by the Allotted Supervisor[cite: 8]
+                    Signature by the Allotted Supervisor
                   </div>
-                  <div className="text-[10px] text-slate-500">(with Name & Designation)[cite: 8]</div>
+                  <div className="text-[10px] text-slate-500">(with Name & Designation)</div>
                 </div>
               </div>
 
               {/* Accounts Section Block */}
               <div className="border-2 border-slate-800 p-3 my-2 space-y-2 bg-slate-50/50">
                 <div className="text-xs font-bold uppercase border-b border-slate-400 pb-1">
-                  TO BE FILLED BY ACCOUNT SECTION[cite: 8]
+                  TO BE FILLED BY ACCOUNT SECTION
                 </div>
                 <p className="text-[11px]">
-                  Fee for dissertation and internship program has been received and verified from account section.[cite: 8]
+                  Fee for dissertation and internship program has been received and verified from account section.
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>Payment Mode: ____________________[cite: 8]</div>
-                  <div>Amount: __________________________[cite: 8]</div>
-                  <div>Trans./Receipt No.: ________________[cite: 8]</div>
-                  <div>Payment Date: ____________________[cite: 8]</div>
+                  <div>Payment Mode: ____________________</div>
+                  <div>Amount: __________________________</div>
+                  <div>Trans./Receipt No.: ________________</div>
+                  <div>Payment Date: ____________________</div>
                 </div>
                 <div className="pt-2 grid grid-cols-3 gap-2 text-[11px]">
-                  <div>Verified by Name: ____________[cite: 8]</div>
-                  <div>Designation: __________________[cite: 8]</div>
-                  <div>Signature & Date: _____________[cite: 8]</div>
+                  <div>Verified by Name: ____________</div>
+                  <div>Designation: __________________</div>
+                  <div>Signature & Date: _____________</div>
                 </div>
               </div>
 
               {/* Office Use & Enclosures Footer */}
               <div className="pt-2 flex justify-between items-start text-xs border-t border-slate-800">
                 <div>
-                  <div className="font-bold underline mb-1">Enclosed: -</div>[cite: 8]
+                  <div className="font-bold underline mb-1">Enclosed: -</div>
                   <ol className="list-decimal list-inside text-[11px] space-y-0.5">
-                    <li>Photocopy of University/College/School Identity Card.[cite: 8]</li>
-                    <li>Photocopy of Identity Proof.[cite: 8]</li>
-                    <li>Photocopy of Fee Receipt.[cite: 8]</li>
+                    <li>Photocopy of University/College/School Identity Card.</li>
+                    <li>Photocopy of Identity Proof.</li>
+                    <li>Photocopy of Fee Receipt.</li>
                   </ol>
                 </div>
                 <div className="text-center pt-4">
                   <div className="border-t border-slate-800 w-56 pt-1 font-bold">
-                    Signature[cite: 8]
+                    Signature
                   </div>
                   <div className="text-[10px] font-semibold">
-                    OIC, Dissertation Work & Internship Programme[cite: 8]
+                    OIC, Dissertation Work & Internship Programme
                   </div>
                 </div>
               </div>
