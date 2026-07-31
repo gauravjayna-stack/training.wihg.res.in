@@ -5,9 +5,68 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { sendMail, templates } = require('../utils/email');
 
 const router = express.Router();
-router.use(requireAuth, requireRole('ADMIN'));
 
-// 1. List all applications (with filters)
+// Middleware to extract auth token from Authorization header OR URL query parameter (?token=...)
+const allowQueryOrHeaderAuth = (req, res, next) => {
+  if (req.query.token && !req.headers.authorization) {
+    req.headers.authorization = `Bearer ${req.query.token}`;
+  }
+  next();
+};
+
+// Apply Auth and Admin Role check to ALL admin routes below
+router.use(allowQueryOrHeaderAuth, requireAuth, requireRole('ADMIN'));
+
+// 1. Safe CSV export with secured authentication
+router.get('/export.csv', async (req, res) => {
+  try {
+    const { year, discipline, supervisor, feeStatus } = req.query;
+    const where = {};
+    if (discipline) where.scientist = { specialization: discipline };
+    if (supervisor && where.scientist) where.scientist.name = supervisor;
+    if (feeStatus) where.payment = { status: feeStatus };
+
+    let applications = await prisma.application.findMany({
+      where,
+      include: { student: true, scientist: true, payment: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (year) {
+      applications = applications.filter((a) => new Date(a.createdAt).getFullYear().toString() === year);
+    }
+
+    const header = 'Student Name,Email,Type,College,Scientist,Status,Fee Status,Fee Waived,Start Date,End Date\n';
+    const rows = applications
+      .map((a) =>
+        [
+          a.student?.name || 'N/A',
+          a.student?.email || 'N/A',
+          a.type || '',
+          a.collegeName || '',
+          a.scientist?.name || 'Unassigned',
+          a.status || '',
+          a.payment?.status || 'N/A',
+          a.feeWaived ? 'YES' : 'NO',
+          a.startDate ? new Date(a.startDate).toISOString().slice(0, 10) : '',
+          a.endDate ? new Date(a.endDate).toISOString().slice(0, 10) : '',
+        ]
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(',')
+      )
+      .join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="wihg_applications_export.csv"');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    return res.status(200).send('\uFEFF' + header + rows);
+  } catch (error) {
+    console.error('Export CSV error:', error);
+    return res.status(500).send('Failed to generate CSV export');
+  }
+});
+
+// 2. List all applications (with filters)
 router.get('/applications', async (req, res) => {
   try {
     const { status, type, discipline } = req.query;
@@ -34,7 +93,7 @@ router.get('/applications', async (req, res) => {
   }
 });
 
-// 2. Approve or reject a pending application
+// 3. Approve or reject a pending application
 router.patch('/applications/:id/decision', async (req, res) => {
   try {
     const { decision, note } = req.body || {};
@@ -64,7 +123,7 @@ router.patch('/applications/:id/decision', async (req, res) => {
   }
 });
 
-// 3. Auto-allocate an unassigned application to a scientist
+// 4. Auto-allocate an unassigned application to a scientist
 router.patch('/applications/:id/auto-allocate', async (req, res) => {
   try {
     const app = await prisma.application.findUnique({ where: { id: req.params.id } });
@@ -89,7 +148,7 @@ router.patch('/applications/:id/auto-allocate', async (req, res) => {
   }
 });
 
-// 4. EWS Fee Waiver
+// 5. EWS Fee Waiver
 router.patch('/applications/:id/waiver', async (req, res) => {
   try {
     const { approve, reason } = req.body || {};
@@ -111,7 +170,7 @@ router.patch('/applications/:id/waiver', async (req, res) => {
   }
 });
 
-// 5. Global analytics dashboard
+// 6. Global analytics dashboard
 router.get('/analytics', async (req, res) => {
   try {
     const [totalInterns, totalDissertations, byStatus, byDiscipline] = await Promise.all([
@@ -158,7 +217,7 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-// 6. GET /api/admin/settings (Retrieve Saved Signatories & Settings)
+// 7. GET /api/admin/settings (Retrieve Saved Signatories & Settings)
 router.get('/settings', async (req, res) => {
   try {
     let settings = null;
@@ -193,7 +252,7 @@ router.get('/settings', async (req, res) => {
   }
 });
 
-// 7. PUT /api/admin/settings (Save Signatories & Settings)
+// 8. PUT /api/admin/settings (Save Signatories & Settings)
 router.put('/settings', async (req, res) => {
   try {
     const { coordinatorName, coordinatorDesignation, directorName, directorDesignation } = req.body || {};
@@ -219,55 +278,6 @@ router.put('/settings', async (req, res) => {
   } catch (error) {
     console.error('Error saving settings:', error);
     return res.status(500).json({ error: 'Failed to save signatories.' });
-  }
-});
-
-// 8. Safe CSV export with clean download response headers
-router.get('/export.csv', async (req, res) => {
-  try {
-    const { year, discipline, supervisor, feeStatus } = req.query;
-    const where = {};
-    if (discipline) where.scientist = { specialization: discipline };
-    if (supervisor && where.scientist) where.scientist.name = supervisor;
-    if (feeStatus) where.payment = { status: feeStatus };
-
-    let applications = await prisma.application.findMany({
-      where,
-      include: { student: true, scientist: true, payment: true },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (year) {
-      applications = applications.filter((a) => new Date(a.createdAt).getFullYear().toString() === year);
-    }
-
-    const header = 'Student Name,Email,Type,College,Scientist,Status,Fee Status,Fee Waived,Start Date,End Date\n';
-    const rows = applications
-      .map((a) =>
-        [
-          a.student?.name || 'N/A',
-          a.student?.email || 'N/A',
-          a.type || '',
-          a.collegeName || '',
-          a.scientist?.name || 'Unassigned',
-          a.status || '',
-          a.payment?.status || 'N/A',
-          a.feeWaived ? 'YES' : 'NO',
-          a.startDate ? new Date(a.startDate).toISOString().slice(0, 10) : '',
-          a.endDate ? new Date(a.endDate).toISOString().slice(0, 10) : '',
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      )
-      .join('\n');
-
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="wihg_applications_export.csv"');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
-    res.status(200).send('\uFEFF' + header + rows); // Added BOM (\uFEFF) for proper Excel formatting
-  } catch (error) {
-    console.error('Export CSV error:', error);
-    res.status(500).send('Failed to generate CSV export');
   }
 });
 
