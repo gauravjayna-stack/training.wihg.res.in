@@ -222,7 +222,7 @@ router.put('/settings', async (req, res) => {
   }
 });
 
-// 8. Safe CSV export
+// 8. Safe CSV export with clean download response headers
 router.get('/export.csv', async (req, res) => {
   try {
     const { year, discipline, supervisor, feeStatus } = req.query;
@@ -261,9 +261,10 @@ router.get('/export.csv', async (req, res) => {
       )
       .join('\n');
 
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="wihg_applications_export.csv"');
-    res.status(200).send(header + rows);
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+    res.status(200).send('\uFEFF' + header + rows); // Added BOM (\uFEFF) for proper Excel formatting
   } catch (error) {
     console.error('Export CSV error:', error);
     res.status(500).send('Failed to generate CSV export');
