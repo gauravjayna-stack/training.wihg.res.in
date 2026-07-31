@@ -6,7 +6,8 @@ export default function ApplyForm() {
   const navigate = useNavigate();
   const [scientists, setScientists] = useState([]);
   const [mode, setMode] = useState('AUTO'); // 'AUTO' | 'DIRECT'
-  
+  const [loadingProfile, setLoadingProfile] = useState(true);
+
   const [form, setForm] = useState({
     type: 'INTERNSHIP', // 'INTERNSHIP' | 'DISSERTATION'
     year: new Date().getFullYear().toString(),
@@ -48,7 +49,30 @@ export default function ApplyForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // 1. Fetch available scientists
     api.get('/scientists').then((res) => setScientists(res.data)).catch(() => {});
+
+    // 2. Fetch logged-in user profile to auto-fill registration data
+    api.get('/auth/me')
+      .then((res) => {
+        const user = res.data;
+        if (user) {
+          setForm((prev) => ({
+            ...prev,
+            fullName: user.fullName || user.name || prev.fullName,
+            email: user.email || prev.email,
+            phoneNo: user.phoneNo || user.phone || prev.phoneNo,
+            fatherOrHusbandName: user.fatherOrHusbandName || prev.fatherOrHusbandName,
+            dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : prev.dob,
+            gender: user.gender || prev.gender,
+            category: user.category || prev.category,
+            addressPermanent: user.addressPermanent || user.address || prev.addressPermanent,
+            addressCorrespondence: user.addressCorrespondence || user.address || prev.addressCorrespondence,
+          }));
+        }
+      })
+      .catch((err) => console.error('Failed to pre-fill registration data', err))
+      .finally(() => setLoadingProfile(false));
   }, []);
 
   const handleAcademicChange = (index, field, value) => {
@@ -96,7 +120,12 @@ export default function ApplyForm() {
   }
 
   const inputClass = "w-full border border-gray-300 rounded px-3 py-1.5 text-sm mt-1 focus:ring-1 focus:ring-navy-600";
+  const readOnlyInputClass = "w-full border border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed rounded px-3 py-1.5 text-sm mt-1";
   const labelClass = "text-xs font-semibold text-gray-700";
+
+  if (loadingProfile) {
+    return <div className="text-center py-12 text-sm text-gray-500">Loading student profile details...</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -133,8 +162,8 @@ export default function ApplyForm() {
             
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>1. Full Name (in Block letters) *</label>
-                <input required className={inputClass} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value.toUpperCase() })} />
+                <label className={labelClass}>1. Full Name (Auto-fetched from Registration) *</label>
+                <input readOnly className={readOnlyInputClass} value={form.fullName} />
               </div>
               <div>
                 <label className={labelClass}>2. Father's / Husband's Name *</label>
@@ -155,12 +184,12 @@ export default function ApplyForm() {
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Contact Phone No. *</label>
-                <input required type="tel" className={inputClass} value={form.phoneNo} onChange={(e) => setForm({ ...form, phoneNo: e.target.value })} />
+                <label className={labelClass}>Contact Phone No. (Auto-fetched) *</label>
+                <input readOnly type="tel" className={readOnlyInputClass} value={form.phoneNo} />
               </div>
               <div>
-                <label className={labelClass}>E-mail Address *</label>
-                <input required type="email" className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                <label className={labelClass}>E-mail Address (Auto-fetched) *</label>
+                <input readOnly type="email" className={readOnlyInputClass} value={form.email} />
               </div>
             </div>
 
