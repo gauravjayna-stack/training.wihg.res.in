@@ -66,6 +66,7 @@ router.post(
   requireRole('STUDENT'),
   uploadJoining.fields([
     { name: 'photo', maxCount: 1 },
+    { name: 'signature', maxCount: 1 },
     { name: 'collegeId', maxCount: 1 },
     { name: 'idProof', maxCount: 1 },
     { name: 'feeReceipt', maxCount: 1 },
@@ -132,38 +133,45 @@ router.post(
 
       // Enclosure verification
       const photoFile = req.files?.photo?.[0];
+      const signatureFile = req.files?.signature?.[0];
       const collegeIdFile = req.files?.collegeId?.[0];
       const idProofFile = req.files?.idProof?.[0];
       const feeReceiptFile = req.files?.feeReceipt?.[0];
 
-      if (!photoFile || !collegeIdFile || !idProofFile || !feeReceiptFile) {
+      if (!photoFile || !signatureFile || !collegeIdFile || !idProofFile || !feeReceiptFile) {
         return res.status(400).json({
-          error: 'All mandatory enclosures (Passport Photo, College ID, Identity Proof, and Fee Receipt) must be uploaded.',
+          error: 'All mandatory enclosures (Passport Photo, Signature Image, College ID, Identity Proof, and Fee Receipt) must be uploaded.',
         });
       }
 
       const finalEnrolmentNo = enrolmentNo || (await generateEnrolmentNo());
 
+      const joiningData = {
+        applicationId: app.id,
+        enrolmentNo: finalEnrolmentNo,
+        joiningDate: new Date(joiningDate),
+        fatherName,
+        dob: dob ? new Date(dob) : null,
+        gender,
+        nationality,
+        aadhaarNo,
+        emergencyContact,
+        address,
+        durationFrom: new Date(durationFrom),
+        durationTo: new Date(durationTo),
+        totalMonths: diffMonths,
+        photoFile: `/uploads/joining/${photoFile.filename}`,
+        collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
+        idProofFile: `/uploads/joining/${idProofFile.filename}`,
+        feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
+      };
+
+      if (signatureFile) {
+        joiningData.signatureFile = `/uploads/joining/${signatureFile.filename}`;
+      }
+
       const joining = await prisma.joiningRecord.create({
-        data: {
-          applicationId: app.id,
-          enrolmentNo: finalEnrolmentNo,
-          joiningDate: new Date(joiningDate),
-          fatherName,
-          dob: dob ? new Date(dob) : null,
-          gender,
-          nationality,
-          aadhaarNo,
-          emergencyContact,
-          address,
-          durationFrom: new Date(durationFrom),
-          durationTo: new Date(durationTo),
-          totalMonths: diffMonths,
-          photoFile: `/uploads/joining/${photoFile.filename}`,
-          collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
-          idProofFile: `/uploads/joining/${idProofFile.filename}`,
-          feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
-        },
+        data: joiningData,
       });
 
       await prisma.application.update({
