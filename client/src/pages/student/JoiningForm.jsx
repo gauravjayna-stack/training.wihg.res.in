@@ -1,199 +1,729 @@
-import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api';
 
-const emptyForm = {
-  joiningDate: '',
-  enrolmentNo: '',
-  fullName: '',
-  fatherMotherName: '',
-  dateOfBirth: '',
-  gender: '',
-  university: '',
-  nationality: '',
-  aadhaarNo: '',
-  emergencyContact: '',
-  email: '',
-  permanentAddress: '',
-  mobileNo: '',
-  durationFrom: '',
-  durationTo: '',
-  totalDurationValue: '',
-  totalDurationUnit: 'WEEKS',
-};
-
 export default function JoiningForm() {
-  const { id } = useParams();
+  const { applicationId } = useParams();
   const navigate = useNavigate();
-  const [form, setForm] = useState(emptyForm);
-  const [files, setFiles] = useState({ photo: null, collegeId: null, idProof: null, feeReceipt: null });
-  const [error, setError] = useState(null);
+
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
 
-  function set(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
-  }
+  // Prefilled & Form Fields
+  const [enrolmentNo, setEnrolmentNo] = useState('');
+  const [appType, setAppType] = useState('INTERNSHIP');
+  const [joiningDate, setJoiningDate] = useState(new Date().toISOString().slice(0, 10));
+  const [name, setName] = useState('');
+  const [fatherName, setFatherName] = useState('');
+  const [dob, setDob] = useState('');
+  const [gender, setGender] = useState('');
+  const [collegeName, setCollegeName] = useState('');
+  const [nationality, setNationality] = useState('Indian');
+  const [aadhaarNo, setAadhaarNo] = useState('');
+  const [emergencyContact, setEmergencyContact] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    if (!files.collegeId || !files.idProof || !files.feeReceipt) {
-      return setError('College/School ID card, identity proof, and fee receipt copies are all required.');
+  // Duration
+  const [durationFrom, setDurationFrom] = useState('');
+  const [durationTo, setDurationTo] = useState('');
+  const [totalMonthsText, setTotalMonthsText] = useState('');
+  const [durationError, setDurationError] = useState('');
+
+  // Declaration Checkbox
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
+
+  // File Enclosures & Previews
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [collegeId, setCollegeId] = useState(null);
+  const [idProof, setIdProof] = useState(null);
+  const [feeReceipt, setFeeReceipt] = useState(null);
+
+  // Load Prefill Data
+  useEffect(() => {
+    api
+      .get(`/joining/prefill/${applicationId}`)
+      .then((res) => {
+        const d = res.data;
+        setEnrolmentNo(d.enrolmentNo || '');
+        setAppType(d.type || 'INTERNSHIP');
+        setName(d.name || '');
+        setEmail(d.email || '');
+        setPhone(d.phone || '');
+        setFatherName(d.fatherName || '');
+        setDob(d.dob || '');
+        setGender(d.gender || '');
+        setCollegeName(d.collegeName || '');
+        setNationality(d.nationality || 'Indian');
+        setAddress(d.address || '');
+
+        if (d.alreadySubmitted) {
+          setSuccessMsg('You have already submitted your Day 1 Joining Form.');
+        }
+      })
+      .catch((err) => {
+        setErrorMsg(err.response?.data?.error || 'Failed to load application details.');
+      })
+      .finally(() => setLoading(false));
+  }, [applicationId]);
+
+  // Handle Photo selection & Local Preview URL
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPhoto(file);
+      setPhotoPreview(URL.createObjectURL(file));
     }
+  };
+
+  // Calculate Duration automatically
+  useEffect(() => {
+    if (!durationFrom || !durationTo) {
+      setTotalMonthsText('');
+      setDurationError('');
+      return;
+    }
+
+    const start = new Date(durationFrom);
+    const end = new Date(durationTo);
+
+    if (end <= start) {
+      setDurationError('Duration "To" date must be after "From" date.');
+      setTotalMonthsText('');
+      return;
+    }
+
+    const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
+    const approxMonths = Math.round(diffDays / 30);
+
+    if (appType === 'INTERNSHIP') {
+      if (diffDays < 28 || approxMonths > 3) {
+        setDurationError('Internship duration must be between 1 Month and 3 Months.');
+        setTotalMonthsText(`${approxMonths} Month(s) [Invalid]`);
+        return;
+      }
+    } else if (appType === 'DISSERTATION') {
+      if (diffDays < 28 || approxMonths > 6) {
+        setDurationError('Dissertation duration must be between 1 Month and 6 Months.');
+        setTotalMonthsText(`${approxMonths} Month(s) [Invalid]`);
+        return;
+      }
+    }
+
+    setDurationError('');
+    setTotalMonthsText(`${approxMonths} Month(s) (${diffDays} Days)`);
+  }, [durationFrom, durationTo, appType]);
+
+  const validateForm = () => {
+    if (durationError) {
+      setErrorMsg(durationError);
+      return false;
+    }
+    if (!declarationAccepted) {
+      setErrorMsg('Please read and accept the declaration before proceeding.');
+      return false;
+    }
+    if (!photo || !collegeId || !idProof || !feeReceipt) {
+      setErrorMsg('All 4 mandatory enclosures (Photo, College ID, Identity Proof, Fee Receipt) are required.');
+      return false;
+    }
+    setErrorMsg('');
+    return true;
+  };
+
+  const handleOpenPreview = (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      setShowPreview(true);
+    }
+  };
+
+  async function handleSubmit(e) {
+    if (e) e.preventDefault();
+    if (!validateForm()) return;
+
     setSubmitting(true);
-    setError(null);
-    const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => v && fd.append(k, v));
-    if (files.photo) fd.append('photo', files.photo);
-    fd.append('collegeId', files.collegeId);
-    fd.append('idProof', files.idProof);
-    fd.append('feeReceipt', files.feeReceipt);
     try {
-      await api.post(`/joining/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      navigate('/student');
+      const formData = new FormData();
+      formData.append('enrolmentNo', enrolmentNo);
+      formData.append('joiningDate', joiningDate);
+      formData.append('fatherName', fatherName);
+      formData.append('dob', dob);
+      formData.append('gender', gender);
+      formData.append('nationality', nationality);
+      formData.append('aadhaarNo', aadhaarNo);
+      formData.append('emergencyContact', emergencyContact);
+      formData.append('address', address);
+      formData.append('durationFrom', durationFrom);
+      formData.append('durationTo', durationTo);
+      formData.append('declarationAccepted', declarationAccepted);
+
+      formData.append('photo', photo);
+      formData.append('collegeId', collegeId);
+      formData.append('idProof', idProof);
+      formData.append('feeReceipt', feeReceipt);
+
+      await api.post(`/joining/${applicationId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setShowPreview(false);
+      setSuccessMsg('Joining Form submitted successfully! Redirecting to dashboard...');
+      setTimeout(() => navigate('/student/dashboard'), 2000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Submission failed.');
+      setErrorMsg(err.response?.data?.error || 'Failed to submit joining form.');
+      setShowPreview(false);
     } finally {
       setSubmitting(false);
     }
   }
 
-  const input = 'w-full border rounded px-3 py-2 text-sm mt-1';
-  const label = 'text-sm font-medium';
+  if (loading) {
+    return <div className="text-center py-10 text-slate-600 font-medium">Loading Joining Form...</div>;
+  }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-wihg-navy mb-1">Joining Form for Internship / Dissertation Work</h1>
-      <p className="text-xs text-gray-500 mb-6">
-        Submit this on your first day of reporting, along with photocopies of your College/School ID card, identity proof, and fee receipt.
-      </p>
-      <form onSubmit={onSubmit} className="bg-white shadow rounded-lg p-6 space-y-4">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label}>Enrolment No.</label>
-            <input placeholder="WIHG/2026/Intern/..." className={input} value={form.enrolmentNo} onChange={(e) => set('enrolmentNo', e.target.value)} />
-          </div>
-          <div>
-            <label className={label}>Joining Date</label>
-            <input required type="date" className={input} value={form.joiningDate} onChange={(e) => set('joiningDate', e.target.value)} />
-          </div>
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        {/* Header */}
+        <div className="border-b border-slate-200 pb-4 mb-6 text-center sm:text-left">
+          <h1 className="text-2xl font-bold text-slate-800">
+            Joining Form for {appType === 'INTERNSHIP' ? 'Internship' : 'Dissertation Work'}
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Submit this on your first day of reporting, along with photocopies of your College/School ID card, identity proof, and fee receipt.
+          </p>
         </div>
 
-        <div>
-          <label className={label}>Name (in Block Letters)</label>
-          <input required className={input} value={form.fullName} onChange={(e) => set('fullName', e.target.value.toUpperCase())} />
-        </div>
+        {errorMsg && (
+          <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-medium">
+            ⚠️ {errorMsg}
+          </div>
+        )}
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label}>Father's / Mother's Name</label>
-            <input required className={input} value={form.fatherMotherName} onChange={(e) => set('fatherMotherName', e.target.value)} />
+        {successMsg && (
+          <div className="mb-6 p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium">
+            ✅ {successMsg}
           </div>
-          <div>
-            <label className={label}>Date of Birth</label>
-            <input required type="date" className={input} value={form.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
-          </div>
-        </div>
+        )}
 
-        <div className="grid sm:grid-cols-3 gap-4">
-          <div>
-            <label className={label}>Gender</label>
-            <select required className={input} value={form.gender} onChange={(e) => set('gender', e.target.value)}>
-              <option value="">Select…</option>
-              <option value="Female">Female</option>
-              <option value="Male">Male</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label className={label}>University / College / Institute</label>
-            <input required className={input} value={form.university} onChange={(e) => set('university', e.target.value)} />
-          </div>
-        </div>
+        <form onSubmit={handleOpenPreview} className="space-y-6">
+          {/* Form Fields */}
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Enrolment No. (Auto-generated)</label>
+              <input
+                type="text"
+                readOnly
+                value={enrolmentNo}
+                className="w-full bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-700 cursor-not-allowed"
+              />
+            </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label}>Nationality</label>
-            <input required className={input} value={form.nationality} onChange={(e) => set('nationality', e.target.value)} />
-          </div>
-          <div>
-            <label className={label}>Aadhaar No.</label>
-            <input required className={input} value={form.aadhaarNo} onChange={(e) => set('aadhaarNo', e.target.value)} />
-          </div>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Joining Date *</label>
+              <input
+                type="date"
+                required
+                value={joiningDate}
+                onChange={(e) => setJoiningDate(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label}>Emergency Contact No.</label>
-            <input required className={input} value={form.emergencyContact} onChange={(e) => set('emergencyContact', e.target.value)} />
-          </div>
-          <div>
-            <label className={label}>Mobile No.</label>
-            <input required className={input} value={form.mobileNo} onChange={(e) => set('mobileNo', e.target.value)} />
-          </div>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Name (in Block Letters) *</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value.toUpperCase())}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-        <div>
-          <label className={label}>E-mail</label>
-          <input required type="email" className={input} value={form.email} onChange={(e) => set('email', e.target.value)} />
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Father's / Mother's Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="Parent Name"
+                value={fatherName}
+                onChange={(e) => setFatherName(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-        <div>
-          <label className={label}>Permanent Address</label>
-          <textarea required rows={3} className={input} value={form.permanentAddress} onChange={(e) => set('permanentAddress', e.target.value)} />
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Date of Birth *</label>
+              <input
+                type="date"
+                required
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label}>Duration From</label>
-            <input required type="date" className={input} value={form.durationFrom} onChange={(e) => set('durationFrom', e.target.value)} />
-          </div>
-          <div>
-            <label className={label}>Duration To</label>
-            <input required type="date" className={input} value={form.durationTo} onChange={(e) => set('durationTo', e.target.value)} />
-          </div>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Gender *</label>
+              <select
+                required
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={label}>Total Duration</label>
-            <input required type="number" min={1} className={input} value={form.totalDurationValue} onChange={(e) => set('totalDurationValue', e.target.value)} />
-          </div>
-          <div>
-            <label className={label}>Unit</label>
-            <select className={input} value={form.totalDurationUnit} onChange={(e) => set('totalDurationUnit', e.target.value)}>
-              <option value="WEEKS">Weeks</option>
-              <option value="MONTHS">Months</option>
-            </select>
-          </div>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">University / College / Institute *</label>
+              <input
+                type="text"
+                required
+                value={collegeName}
+                onChange={(e) => setCollegeName(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-        <div className="border-t pt-4">
-          <p className="text-sm font-semibold text-wihg-navy mb-3">Enclosures</p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Nationality *</label>
+              <input
+                type="text"
+                required
+                value={nationality}
+                onChange={(e) => setNationality(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Aadhaar No. *</label>
+              <input
+                type="text"
+                required
+                maxLength="12"
+                placeholder="12 digit Aadhaar Number"
+                value={aadhaarNo}
+                onChange={(e) => setAadhaarNo(e.target.value.replace(/\D/g, ''))}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Emergency Contact No. *</label>
+              <input
+                type="tel"
+                required
+                placeholder="Emergency Contact Phone"
+                value={emergencyContact}
+                onChange={(e) => setEmergencyContact(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">E-mail (Fetched from account)</label>
+              <input
+                type="email"
+                readOnly
+                value={email}
+                className="w-full bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-600 cursor-not-allowed"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile No. (Fetched from account)</label>
+              <input
+                type="tel"
+                readOnly
+                value={phone}
+                className="w-full bg-slate-100 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-600 cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Permanent Address *</label>
+            <textarea
+              required
+              rows="3"
+              placeholder="Full Permanent Address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+            ></textarea>
+          </div>
+
+          {/* Duration Section */}
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+            <h3 className="text-sm font-bold text-slate-800">
+              Duration Period ({appType === 'INTERNSHIP' ? 'Allowed: 1 to 3 Months' : 'Allowed: 1 to 6 Months'})
+            </h3>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Duration From *</label>
+                <input
+                  type="date"
+                  required
+                  value={durationFrom}
+                  onChange={(e) => setDurationFrom(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Duration To *</label>
+                <input
+                  type="date"
+                  required
+                  value={durationTo}
+                  onChange={(e) => setDurationTo(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Calculated Duration</label>
+                <input
+                  type="text"
+                  readOnly
+                  placeholder="Auto calculated"
+                  value={totalMonthsText}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm font-semibold ${
+                    durationError ? 'bg-red-100 text-red-700 border-red-300' : 'bg-slate-200 text-slate-800 border-slate-300'
+                  }`}
+                />
+              </div>
+            </div>
+            {durationError && <p className="text-xs text-red-600 font-medium">{durationError}</p>}
+          </div>
+
+          {/* Declaration */}
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                required
+                checked={declarationAccepted}
+                onChange={(e) => setDeclarationAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              />
+              <span className="text-xs text-blue-950 leading-relaxed font-medium">
+                I hereby declare that the information furnished by me in this form is true and correct to the best of my knowledge and belief.
+                I undertake to abide by all rules, regulations, safety instructions and disciplinary requirements of the Wadia Institute of Himalayan Geology during the period of my Internship / Dissertation Work.
+              </span>
+            </label>
+          </div>
+
+          {/* Mandatory Enclosures */}
           <div className="space-y-3">
-            <div>
-              <label className={label}>Passport-size photograph (optional)</label>
-              <input type="file" accept=".jpg,.jpeg,.png,.webp" className={input} onChange={(e) => setFiles((f) => ({ ...f, photo: e.target.files[0] }))} />
-            </div>
-            <div>
-              <label className={label}>1. Photocopy of University/College/School ID Card *</label>
-              <input required type="file" accept=".pdf,.jpg,.jpeg,.png" className={input} onChange={(e) => setFiles((f) => ({ ...f, collegeId: e.target.files[0] }))} />
-            </div>
-            <div>
-              <label className={label}>2. Photocopy of Identity Proof *</label>
-              <input required type="file" accept=".pdf,.jpg,.jpeg,.png" className={input} onChange={(e) => setFiles((f) => ({ ...f, idProof: e.target.files[0] }))} />
-            </div>
-            <div>
-              <label className={label}>3. Photocopy of Fee Receipt *</label>
-              <input required type="file" accept=".pdf,.jpg,.jpeg,.png" className={input} onChange={(e) => setFiles((f) => ({ ...f, feeReceipt: e.target.files[0] }))} />
+            <h3 className="text-sm font-bold text-slate-800 border-b pb-2">Mandatory Enclosures</h3>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="border rounded-lg p-3 bg-white">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">📷 Passport-size Photograph *</label>
+                <input
+                  type="file"
+                  required
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="text-xs w-full text-slate-600"
+                />
+              </div>
+
+              <div className="border rounded-lg p-3 bg-white">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">1. Photocopy of University/College/School ID Card *</label>
+                <input
+                  type="file"
+                  required
+                  accept="image/*,.pdf"
+                  onChange={(e) => setCollegeId(e.target.files[0])}
+                  className="text-xs w-full text-slate-600"
+                />
+              </div>
+
+              <div className="border rounded-lg p-3 bg-white">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">2. Photocopy of Identity Proof (Aadhaar / Passport / Voter ID) *</label>
+                <input
+                  type="file"
+                  required
+                  accept="image/*,.pdf"
+                  onChange={(e) => setIdProof(e.target.files[0])}
+                  className="text-xs w-full text-slate-600"
+                />
+              </div>
+
+              <div className="border rounded-lg p-3 bg-white">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">3. Photocopy of Fee Receipt *</label>
+                <input
+                  type="file"
+                  required
+                  accept="image/*,.pdf"
+                  onChange={(e) => setFeeReceipt(e.target.files[0])}
+                  className="text-xs w-full text-slate-600"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {error && <p className="text-red-700 text-xs">{error}</p>}
-        <button disabled={submitting} className="w-full bg-wihg-navy text-white rounded py-2 text-sm font-medium disabled:opacity-50">
-          {submitting ? 'Submitting…' : 'Submit Joining Form'}
-        </button>
-      </form>
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <button
+              type="button"
+              onClick={handleOpenPreview}
+              className="flex-1 bg-slate-100 text-slate-800 border border-slate-300 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition shadow-sm flex items-center justify-center gap-2"
+            >
+              👁️ Preview Joining Form
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-slate-900 text-white py-3 rounded-lg font-bold text-sm hover:bg-black disabled:opacity-50 transition shadow-md"
+            >
+              {submitting ? 'Submitting...' : 'Submit Joining Form'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* ================= EXACT OFFICIAL PDF PREVIEW MODAL ================= */}
+      {showPreview && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl border border-slate-300 overflow-hidden my-auto max-h-[90vh] flex flex-col">
+            
+            {/* Modal Header Bar */}
+            <div className="bg-slate-800 text-white px-6 py-3 flex items-center justify-between no-print">
+              <span className="font-semibold text-sm">Official Joining Form Preview</span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded transition"
+                >
+                  🖨️ Print / Save PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(false)}
+                  className="text-slate-400 hover:text-white text-xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Form Content */}
+            <div className="p-8 overflow-y-auto font-serif text-slate-900 text-sm leading-relaxed space-y-4 border-2 border-slate-800 m-4 rounded">
+              
+              {/* Header Titles */}
+              <div className="text-center space-y-1 border-b-2 border-slate-800 pb-3">
+                <p className="text-xs font-bold tracking-wider uppercase text-slate-700">
+                  विज्ञान एवं प्रौद्योगिकी विभाग / DEPARTMENT OF SCIENCE & TECHNOLOGY
+                </p>
+                <h2 className="text-lg font-black uppercase text-slate-900 tracking-wide">
+                  वाडिया हिमालय भूविज्ञान संस्थान / WADIA INSTITUTE OF HIMALAYAN GEOLOGY
+                </h2>
+                <h3 className="text-md font-bold uppercase underline decoration-1 text-slate-800 pt-1">
+                  JOINING FORM FOR INTERNSHIP/DISSERTATION WORK 2026
+                </h3>
+              </div>
+
+              {/* Enrolment & Date Header */}
+              <div className="flex justify-between items-center text-xs font-bold border-b pb-2">
+                <div>
+                  Enrolment No.: <span className="font-mono text-sm underline">{enrolmentNo || 'WIHG/2026/Intern/7B/'}</span>
+                </div>
+                <div>
+                  Date: <span className="underline">{joiningDate}</span>
+                </div>
+              </div>
+
+              {/* Program Type Checkboxes */}
+              <div className="flex gap-6 text-xs font-bold py-1">
+                <span className="text-slate-600">(Please tick the appropriate option):</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="border border-slate-800 px-1 text-xs">{appType === 'INTERNSHIP' ? '✓' : ' '}</span>
+                  <span>Internship Programme</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="border border-slate-800 px-1 text-xs">{appType === 'DISSERTATION' ? '✓' : ' '}</span>
+                  <span>Dissertation Work</span>[cite: 8]
+                </div>
+              </div>
+
+              {/* Main Body: Details + Photo Box */}
+              <div className="grid grid-cols-4 gap-4 items-start pt-2">
+                <div className="col-span-3 space-y-2 text-xs">
+                  <div>
+                    <strong className="w-44 inline-block">Name (in Block Letters):</strong>
+                    <span className="uppercase font-semibold underline">{name}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Father's/Mother's Name:</strong>
+                    <span className="underline">{fatherName}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Date of Birth:</strong>
+                    <span className="underline">{dob}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Gender:</strong>
+                    <span className="underline">{gender}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">University/College/Institute:</strong>
+                    <span className="underline">{collegeName}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Nationality:</strong>
+                    <span className="underline">{nationality}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Aadhaar No.:</strong>
+                    <span className="underline">{aadhaarNo}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Emergency Contact No.:</strong>
+                    <span className="underline">{emergencyContact}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">E-mail:</strong>
+                    <span className="underline">{email}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block">Mobile No.:</strong>
+                    <span className="underline">{phone}</span>[cite: 8]
+                  </div>
+                  <div>
+                    <strong className="w-44 inline-block align-top">Permanent Address:</strong>
+                    <span className="underline inline-block w-64 leading-tight">{address}</span>[cite: 8]
+                  </div>
+                </div>
+
+                {/* Photo Box with Signature Placeholder */}
+                <div className="col-span-1 flex flex-col items-center">
+                  <div className="w-28 h-36 border-2 border-slate-800 flex flex-col items-center justify-center p-1 text-center bg-slate-50 overflow-hidden relative">
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Student Photo" className="w-full h-full object-cover" />
+                    ) : (
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        affix recent passport size colour photograph with signature[cite: 8]
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-slate-600 mt-1 font-sans italic text-center">
+                    (Photograph & Signature)
+                  </span>
+                </div>
+              </div>
+
+              {/* Declaration Statement */}
+              <div className="text-[11px] text-justify leading-tight border-t border-b border-slate-300 py-2 my-2 italic">
+                I hereby declare that the information furnished by me in this form is true and correct to the best of my knowledge and belief.
+                I undertake to abide by all rules, regulations, safety instructions and disciplinary requirements of the Wadia Institute of Himalayan Geology during the period of my Internship / Dissertation Work.[cite: 8]
+              </div>
+
+              {/* Duration Row */}
+              <div className="text-xs font-semibold flex justify-between border-b pb-2">
+                <div>
+                  Duration: From <span className="underline">{durationFrom}</span> To <span className="underline">{durationTo}</span>[cite: 8]
+                </div>
+                <div>
+                  Total Duration: <span className="underline">{totalMonthsText}</span>[cite: 8]
+                </div>
+              </div>
+
+              {/* Signatures Row */}
+              <div className="pt-6 flex justify-between items-end text-xs">
+                <div className="text-center">
+                  <div className="border-t border-slate-800 w-48 pt-1 font-bold">
+                    Student Signature with Date[cite: 8]
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="border-t border-slate-800 w-52 pt-1 font-bold">
+                    Signature by the Allotted Supervisor[cite: 8]
+                  </div>
+                  <div className="text-[10px] text-slate-500">(with Name & Designation)[cite: 8]</div>
+                </div>
+              </div>
+
+              {/* Accounts Section Block */}
+              <div className="border-2 border-slate-800 p-3 my-2 space-y-2 bg-slate-50/50">
+                <div className="text-xs font-bold uppercase border-b border-slate-400 pb-1">
+                  TO BE FILLED BY ACCOUNT SECTION[cite: 8]
+                </div>
+                <p className="text-[11px]">
+                  Fee for dissertation and internship program has been received and verified from account section.[cite: 8]
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>Payment Mode: ____________________[cite: 8]</div>
+                  <div>Amount: __________________________[cite: 8]</div>
+                  <div>Trans./Receipt No.: ________________[cite: 8]</div>
+                  <div>Payment Date: ____________________[cite: 8]</div>
+                </div>
+                <div className="pt-2 grid grid-cols-3 gap-2 text-[11px]">
+                  <div>Verified by Name: ____________[cite: 8]</div>
+                  <div>Designation: __________________[cite: 8]</div>
+                  <div>Signature & Date: _____________[cite: 8]</div>
+                </div>
+              </div>
+
+              {/* Office Use & Enclosures Footer */}
+              <div className="pt-2 flex justify-between items-start text-xs border-t border-slate-800">
+                <div>
+                  <div className="font-bold underline mb-1">Enclosed: -</div>[cite: 8]
+                  <ol className="list-decimal list-inside text-[11px] space-y-0.5">
+                    <li>Photocopy of University/College/School Identity Card.[cite: 8]</li>
+                    <li>Photocopy of Identity Proof.[cite: 8]</li>
+                    <li>Photocopy of Fee Receipt.[cite: 8]</li>
+                  </ol>
+                </div>
+                <div className="text-center pt-4">
+                  <div className="border-t border-slate-800 w-56 pt-1 font-bold">
+                    Signature[cite: 8]
+                  </div>
+                  <div className="text-[10px] font-semibold">
+                    OIC, Dissertation Work & Internship Programme[cite: 8]
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Bottom Controls */}
+            <div className="bg-slate-100 border-t border-slate-200 px-6 py-3 flex justify-end gap-3 no-print">
+              <button
+                type="button"
+                onClick={() => setShowPreview(false)}
+                className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50"
+              >
+                Close Preview
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleSubmit}
+                className="px-5 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black disabled:opacity-50"
+              >
+                {submitting ? 'Submitting...' : 'Confirm & Submit Form'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
