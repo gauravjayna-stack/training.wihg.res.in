@@ -30,9 +30,10 @@ export default function App() {
 
         <Route path="/student" element={<ProtectedRoute roles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
         <Route path="/student/apply" element={<ProtectedRoute roles={['STUDENT']}><ApplyForm /></ProtectedRoute>} />
-        <Route path="/student/pay/:id" element={<ProtectedRoute roles={['STUDENT']}><PaymentUpload /></ProtectedRoute>} />
-        <Route path="/student/join/:id" element={<ProtectedRoute roles={['STUDENT']}><JoiningForm /></ProtectedRoute>} />
-        <Route path="/student/certificate/:id" element={<ProtectedRoute roles={['STUDENT']}><CertificateRequest /></ProtectedRoute>} />
+        <Route path="/student/pay/:applicationId" element={<ProtectedRoute roles={['STUDENT']}><PaymentUpload /></ProtectedRoute>} />
+        <Route path="/student/join/:applicationId" element={<ProtectedRoute roles={['STUDENT']}><JoiningForm /></ProtectedRoute>} />
+        <Route path="/student/joining-form/:applicationId" element={<ProtectedRoute roles={['STUDENT']}><JoiningForm /></ProtectedRoute>} />
+        <Route path="/student/certificate/:applicationId" element={<ProtectedRoute roles={['STUDENT']}><CertificateRequest /></ProtectedRoute>} />
 
         <Route path="/scientist" element={<ProtectedRoute roles={['SCIENTIST']}><ScientistDashboard /></ProtectedRoute>} />
         <Route path="/accounts" element={<ProtectedRoute roles={['ACCOUNTS', 'ADMIN']}><AccountsDashboard /></ProtectedRoute>} />
