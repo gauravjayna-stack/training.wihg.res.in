@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api, { fileUrl, BACKEND_ORIGIN } from '../../api';
+import api, { fileUrl } from '../../api';
 import StatusBadge from '../../components/StatusBadge.jsx';
 
 export default function Dashboard() {
@@ -35,23 +35,15 @@ export default function Dashboard() {
   }
   useEffect(load, [statusFilter]);
 
-  // Safe CSV export attaching Bearer token
+  // Safe CSV export using Axios instance with attached Bearer token
   async function handleExportCSV() {
     setExporting(true);
     try {
-      const token = localStorage.getItem('wihg_token') || localStorage.getItem('token');
-      const response = await fetch(`${BACKEND_ORIGIN}/api/admin/export.csv`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await api.get('/admin/export.csv', {
+        responseType: 'blob',
       });
 
-      if (!response.ok) {
-        throw new Error('Authentication or export failed on server.');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -61,7 +53,8 @@ export default function Dashboard() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err.message || 'Failed to export CSV.');
+      console.error('CSV Export Error:', err);
+      alert('Failed to export CSV. Please re-login and try again.');
     } finally {
       setExporting(false);
     }
