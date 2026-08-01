@@ -161,6 +161,7 @@ export default function JoiningForm() {
     setSubmitting(true);
     try {
       const formData = new FormData();
+      formData.append('enrolmentNo', enrolmentNo);
       formData.append('joiningDate', joiningDate);
       formData.append('fatherName', fatherName);
       formData.append('dob', dob);
@@ -377,7 +378,7 @@ export default function JoiningForm() {
             ></textarea>
           </div>
 
-          {/* Section 2: Duration Period */}
+          {/* Section 2: Duration */}
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
             <h3 className="text-sm font-bold text-slate-800">
               Duration Period ({appType === 'INTERNSHIP' ? 'Allowed: 1 to 3 Months' : 'Allowed: 1 to 6 Months'})
@@ -455,7 +456,7 @@ export default function JoiningForm() {
                 />
               </div>
 
-              {/* Signature Upload */}
+              {/* Signature Upload in JPG Format */}
               <div className="border rounded-lg p-3 bg-white space-y-1 border-blue-200 bg-blue-50/30">
                 <label className="block text-xs font-semibold text-slate-800">✍️ Student Signature Image (.jpg / .jpeg) *</label>
                 <input
@@ -526,12 +527,12 @@ export default function JoiningForm() {
         </form>
       </div>
 
-      {/* ================= OFFICIAL PREVIEW MODAL ================= */}
+      {/* ================= EXACT OFFICIAL PDF PREVIEW MODAL ================= */}
       {showPreview && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl border border-slate-300 overflow-hidden my-auto max-h-[90vh] flex flex-col">
             
-            {/* Modal Header */}
+            {/* Modal Header Bar */}
             <div className="bg-slate-800 text-white px-6 py-3 flex items-center justify-between no-print">
               <span className="font-semibold text-sm">Official Joining Form Preview</span>
               <div className="flex items-center gap-3">
@@ -571,14 +572,14 @@ export default function JoiningForm() {
               {/* Enrolment & Date Header */}
               <div className="flex justify-between items-center text-xs font-bold border-b pb-2">
                 <div>
-                  Enrolment No.: <span className="font-mono text-sm underline">{enrolmentNo || 'WIHG/2026/001'}</span>
+                  Enrolment No.: <span className="font-mono text-sm underline">{enrolmentNo || 'WIHG/2026/Intern/7B/'}</span>
                 </div>
                 <div>
                   Date: <span className="underline">{joiningDate}</span>
                 </div>
               </div>
 
-              {/* Program Type */}
+              {/* Program Type Checkboxes */}
               <div className="flex gap-6 text-xs font-bold py-1">
                 <span className="text-slate-600">(Please tick the appropriate option):</span>
                 <div className="flex items-center gap-1.5">
@@ -591,7 +592,7 @@ export default function JoiningForm() {
                 </div>
               </div>
 
-              {/* Main Details + Photo Box */}
+              {/* Main Body: Details + Photo Box */}
               <div className="grid grid-cols-4 gap-4 items-start pt-2">
                 <div className="col-span-3 space-y-2 text-xs">
                   <div>
@@ -640,7 +641,7 @@ export default function JoiningForm() {
                   </div>
                 </div>
 
-                {/* Photo & Signature Box */}
+                {/* Photo Box with Uploaded Signature Embedded */}
                 <div className="col-span-1 flex flex-col items-center">
                   <div className="w-28 h-36 border-2 border-slate-800 flex flex-col items-center justify-between p-1 text-center bg-slate-50 overflow-hidden relative">
                     {photoPreview ? (
@@ -651,6 +652,7 @@ export default function JoiningForm() {
                       </p>
                     )}
                     
+                    {/* Embedded Uploaded Signature image overlay under photo */}
                     {signaturePreview && (
                       <div className="w-full border-t border-slate-400 bg-white/90 pt-0.5">
                         <img src={signaturePreview} alt="Uploaded Signature" className="h-6 object-contain mx-auto" />

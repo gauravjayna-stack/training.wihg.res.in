@@ -7,7 +7,7 @@ const { sendMail, templates } = require('../utils/email');
 const router = express.Router();
 const uploadReceipt = makeUploader('receipts');
 
-// STUDENT: upload fee payment details
+// STUDENT: upload fee payment details (UTR + receipt) for an approved application.
 router.post('/:applicationId', requireAuth, requireRole('STUDENT'), uploadReceipt.single('receipt'), async (req, res) => {
   const app = await prisma.application.findUnique({ where: { id: req.params.applicationId } });
   if (!app || app.studentId !== req.user.id) return res.status(404).json({ error: 'Application not found.' });
@@ -33,7 +33,7 @@ router.post('/:applicationId', requireAuth, requireRole('STUDENT'), uploadReceip
   res.status(201).json(payment);
 });
 
-// ACCOUNTS: list pending
+// ACCOUNTS: list pending fee submissions.
 router.get('/pending', requireAuth, requireRole('ACCOUNTS', 'ADMIN'), async (req, res) => {
   const payments = await prisma.payment.findMany({
     where: { status: 'PENDING' },
@@ -43,9 +43,9 @@ router.get('/pending', requireAuth, requireRole('ACCOUNTS', 'ADMIN'), async (req
   res.json(payments);
 });
 
-// ACCOUNTS: verify or reject
+// ACCOUNTS: verify or reject a payment.
 router.patch('/:id/decision', requireAuth, requireRole('ACCOUNTS', 'ADMIN'), async (req, res) => {
-  const { decision } = req.body || {};
+  const { decision } = req.body || {}; // 'VERIFY' | 'REJECT'
   const payment = await prisma.payment.findUnique({ where: { id: req.params.id }, include: { application: { include: { student: true } } } });
   if (!payment) return res.status(404).json({ error: 'Payment not found.' });
 

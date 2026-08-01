@@ -6,6 +6,7 @@ const { sendMail, templates } = require('../utils/email');
 
 const router = express.Router();
 
+// Middleware to extract auth token from Authorization header OR URL query parameter (?token=...)
 const allowQueryOrHeaderAuth = (req, res, next) => {
   if (req.query.token && !req.headers.authorization) {
     req.headers.authorization = `Bearer ${req.query.token}`;
@@ -13,6 +14,7 @@ const allowQueryOrHeaderAuth = (req, res, next) => {
   next();
 };
 
+// Apply Auth and Admin Role check to ALL admin routes below
 router.use(allowQueryOrHeaderAuth, requireAuth, requireRole('ADMIN'));
 
 // 1. Safe CSV export with secured authentication
@@ -64,7 +66,7 @@ router.get('/export.csv', async (req, res) => {
   }
 });
 
-// 2. List all applications
+// 2. List all applications (with filters)
 router.get('/applications', async (req, res) => {
   try {
     const { status, type, discipline } = req.query;
@@ -121,7 +123,7 @@ router.patch('/applications/:id/decision', async (req, res) => {
   }
 });
 
-// 4. Auto-allocate an unassigned application
+// 4. Auto-allocate an unassigned application to a scientist
 router.patch('/applications/:id/auto-allocate', async (req, res) => {
   try {
     const app = await prisma.application.findUnique({ where: { id: req.params.id } });
@@ -215,7 +217,7 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
-// 7. GET /api/admin/settings
+// 7. GET /api/admin/settings (Retrieve Saved Signatories & Settings)
 router.get('/settings', async (req, res) => {
   try {
     let settings = null;
@@ -250,7 +252,7 @@ router.get('/settings', async (req, res) => {
   }
 });
 
-// 8. PUT /api/admin/settings
+// 8. PUT /api/admin/settings (Save Signatories & Settings)
 router.put('/settings', async (req, res) => {
   try {
     const { coordinatorName, coordinatorDesignation, directorName, directorDesignation } = req.body || {};

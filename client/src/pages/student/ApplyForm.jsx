@@ -5,11 +5,11 @@ import api from '../../api';
 export default function ApplyForm() {
   const navigate = useNavigate();
   const [scientists, setScientists] = useState([]);
-  const [mode, setMode] = useState('AUTO');
+  const [mode, setMode] = useState('AUTO'); // 'AUTO' | 'DIRECT'
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   const [form, setForm] = useState({
-    type: 'INTERNSHIP',
+    type: 'INTERNSHIP', // 'INTERNSHIP' | 'DISSERTATION'
     year: new Date().getFullYear().toString(),
     fullName: '',
     fatherOrHusbandName: '',
@@ -26,9 +26,8 @@ export default function ApplyForm() {
     maritalStatus: 'Single',
     identificationMark: '',
     nationality: 'Indian',
-    category: 'General',
+    category: 'General', // SC/ST/OBC/General
     categoryDetails: '',
-    collegeName: '',
     academicRecords: [
       { exam: 'High School (10th)', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' },
       { exam: 'Intermediate (12th)', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' },
@@ -50,23 +49,25 @@ export default function ApplyForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.get('/scientists').then((res) => setScientists(res.data || [])).catch(() => {});
+    // 1. Fetch available scientists
+    api.get('/scientists').then((res) => setScientists(res.data)).catch(() => {});
 
+    // 2. Fetch logged-in user profile to auto-fill registration data
     api.get('/auth/me')
       .then((res) => {
         const user = res.data;
         if (user) {
           setForm((prev) => ({
             ...prev,
-            fullName: user.fullName || user.name || prev.fullName || '',
-            email: user.email || prev.email || '',
-            phoneNo: user.phoneNo || user.phone || prev.phoneNo || '',
-            fatherOrHusbandName: user.fatherOrHusbandName || prev.fatherOrHusbandName || '',
-            dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : prev.dob || '',
-            gender: user.gender || prev.gender || 'Male',
-            category: user.category || prev.category || 'General',
-            addressPermanent: user.addressPermanent || user.address || prev.addressPermanent || '',
-            addressCorrespondence: user.addressCorrespondence || user.address || prev.addressCorrespondence || '',
+            fullName: user.fullName || user.name || prev.fullName,
+            email: user.email || prev.email,
+            phoneNo: user.phoneNo || user.phone || prev.phoneNo,
+            fatherOrHusbandName: user.fatherOrHusbandName || prev.fatherOrHusbandName,
+            dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : prev.dob,
+            gender: user.gender || prev.gender,
+            category: user.category || prev.category,
+            addressPermanent: user.addressPermanent || user.address || prev.addressPermanent,
+            addressCorrespondence: user.addressCorrespondence || user.address || prev.addressCorrespondence,
           }));
         }
       })
@@ -82,62 +83,29 @@ export default function ApplyForm() {
 
   async function onSubmit(e) {
     e.preventDefault();
-
-    // Prevent submission if missing crucial inputs
-    if (!form.fatherOrHusbandName.trim()) return setError("Father's / Husband's Name is required.");
-    if (!form.addressCorrespondence.trim()) return setError("Address for Correspondence is required.");
-    if (!form.addressPermanent.trim()) return setError("Permanent Address is required.");
-    if (!form.researchInterest.trim()) return setError("Statement of Research Interest is required.");
-    if (mode === 'DIRECT' && !form.scientistId) return setError("Please select an approved scientist or switch to Auto-Allocation.");
-    if (!hodLetter) return setError("Please attach the HOD Forwarding / Recommendation Letter in PDF format.");
+    if (!hodLetter) {
+      return setError('Please attach the HOD Forwarding / Recommendation Letter in PDF format.');
+    }
 
     setSubmitting(true);
     setError(null);
 
     const fd = new FormData();
+    Object.entries(form).forEach(([key, val]) => {
+      if (key === 'academicRecords') {
+        fd.append('academicRecords', JSON.stringify(val));
+      } else {
+        fd.append(key, val);
+      }
+    });
 
-    // Sanitize string/number inputs before sending to satisfy backend validation
-    fd.append('type', form.type || 'INTERNSHIP');
-    fd.append('year', form.year || new Date().getFullYear().toString());
-    fd.append('fullName', form.fullName || 'Student');
-    fd.append('fatherOrHusbandName', form.fatherOrHusbandName.trim());
-    fd.append('addressCorrespondence', form.addressCorrespondence.trim());
-    fd.append('addressPermanent', form.addressPermanent.trim());
-    fd.append('phoneNo', form.phoneNo || 'N/A');
-    fd.append('email', form.email || 'N/A');
-    fd.append('dob', form.dob || new Date().toISOString().split('T')[0]);
-    fd.append('placeOfBirth', form.placeOfBirth.trim() || 'N/A');
-    fd.append('ageYears', String(form.ageYears || '0'));
-    fd.append('ageMonths', String(form.ageMonths || '0'));
-    fd.append('ageDays', String(form.ageDays || '0'));
-    fd.append('gender', form.gender || 'Male');
-    fd.append('maritalStatus', form.maritalStatus || 'Single');
-    fd.append('identificationMark', form.identificationMark.trim() || 'None');
-    fd.append('nationality', form.nationality.trim() || 'Indian');
-    fd.append('category', form.category || 'General');
-    fd.append('categoryDetails', form.categoryDetails.trim() || 'N/A');
-    fd.append('collegeName', form.collegeName.trim() || 'University / College');
-    fd.append('punishedDetails', form.punishedDetails.trim() || 'NO');
-    fd.append('prizesAndAwards', form.prizesAndAwards.trim() || 'N/A');
-    fd.append('specialTraining', form.specialTraining.trim() || 'N/A');
-    fd.append('researchInterest', form.researchInterest.trim());
-    fd.append('durationMonths', String(form.durationMonths || 1));
-    fd.append('topic', form.topic.trim() || 'Not Specified');
-
-    // Structured JSON data
-    fd.append('academicRecords', JSON.stringify(form.academicRecords));
-
-    // Allocation logic
-    fd.append('autoAssignRequested', mode === 'AUTO' ? 'true' : 'false');
-    if (mode === 'DIRECT' && form.scientistId) {
+    fd.append('autoAssignRequested', mode === 'AUTO');
+    if (mode === 'DIRECT') {
       fd.append('scientistId', form.scientistId);
     }
 
-    // Attach File uploads
     fd.append('hodLetter', hodLetter);
-    if (categoryCert) {
-      fd.append('categoryCert', categoryCert);
-    }
+    if (categoryCert) fd.append('categoryCert', categoryCert);
 
     try {
       await api.post('/applications', fd, {
@@ -145,14 +113,7 @@ export default function ApplyForm() {
       });
       navigate('/student');
     } catch (err) {
-      const serverMsg = err.response?.data?.error || err.response?.data?.message;
-      if (typeof serverMsg === 'string') {
-        setError(serverMsg);
-      } else if (Array.isArray(err.response?.data?.errors)) {
-        setError(err.response.data.errors[0]?.message || 'Validation Error');
-      } else {
-        setError('Submission failed. Please check all fields and try again.');
-      }
+      setError(err.response?.data?.error || 'Submission failed.');
     } finally {
       setSubmitting(false);
     }
@@ -170,15 +131,17 @@ export default function ApplyForm() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white shadow-lg rounded-xl p-6 sm:p-8 border border-gray-200">
         
+        {/* Form Title Header */}
         <div className="text-center border-b pb-4 mb-6">
           <h2 className="text-sm font-bold uppercase text-gray-600">WADIA INSTITUTE OF HIMALAYAN GEOLOGY</h2>
           <h1 className="text-xl font-extrabold text-slate-800">APPLICATION FORM FOR DISSERTATION WORK / INTERNSHIP PROGRAMME</h1>
         </div>
 
-        {error && <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 text-xs rounded font-medium">⚠️ {error}</div>}
+        {error && <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 text-xs rounded">{error}</div>}
 
         <form onSubmit={onSubmit} className="space-y-6">
           
+          {/* Program Type and Year */}
           <div className="grid sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
             <div>
               <label className={labelClass}>Programme Applying For *</label>
@@ -193,6 +156,7 @@ export default function ApplyForm() {
             </div>
           </div>
 
+          {/* Personal Details */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-1">1. Personal Information</h3>
             
@@ -243,15 +207,15 @@ export default function ApplyForm() {
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
                 <label className={labelClass}>Age (Years)</label>
-                <input type="number" className={inputClass} value={form.ageYears} onChange={(e) => setForm({ ...form, ageYears: e.target.value })} placeholder="Years" />
+                <input required type="number" className={inputClass} value={form.ageYears} onChange={(e) => setForm({ ...form, ageYears: e.target.value })} placeholder="Years" />
               </div>
               <div>
                 <label className={labelClass}>Age (Months)</label>
-                <input type="number" className={inputClass} value={form.ageMonths} onChange={(e) => setForm({ ...form, ageMonths: e.target.value })} placeholder="Months" />
+                <input required type="number" className={inputClass} value={form.ageMonths} onChange={(e) => setForm({ ...form, ageMonths: e.target.value })} placeholder="Months" />
               </div>
               <div>
                 <label className={labelClass}>Age (Days)</label>
-                <input type="number" className={inputClass} value={form.ageDays} onChange={(e) => setForm({ ...form, ageDays: e.target.value })} placeholder="Days" />
+                <input required type="number" className={inputClass} value={form.ageDays} onChange={(e) => setForm({ ...form, ageDays: e.target.value })} placeholder="Days" />
               </div>
             </div>
 
@@ -283,7 +247,7 @@ export default function ApplyForm() {
                 <input required className={inputClass} value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} />
               </div>
               <div>
-                <label className={labelClass}>7. Category (General/SC/ST/OBC) *</label>
+                <label className={labelClass}>7. Category (General/SC/ST/OBC)</label>
                 <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                   <option value="General">General</option>
                   <option value="SC">Scheduled Caste (SC)</option>
@@ -292,13 +256,9 @@ export default function ApplyForm() {
                 </select>
               </div>
             </div>
-
-            <div>
-              <label className={labelClass}>University / College Name *</label>
-              <input required className={inputClass} placeholder="e.g. IIT Roorkee, Delhi University" value={form.collegeName} onChange={(e) => setForm({ ...form, collegeName: e.target.value })} />
-            </div>
           </div>
 
+          {/* Academic Qualifications Table */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-1">8. Academic Qualifications (Commencing from High School)</h3>
             <div className="overflow-x-auto">
@@ -339,6 +299,7 @@ export default function ApplyForm() {
             </div>
           </div>
 
+          {/* Additional Particulars */}
           <div className="space-y-4">
             <div>
               <label className={labelClass}>9. Have you been punished during your studies at College/University?</label>
@@ -361,6 +322,7 @@ export default function ApplyForm() {
             </div>
           </div>
 
+          {/* Mentor Assignment Selection */}
           <div className="bg-slate-50 p-4 rounded-lg border space-y-3">
             <label className="text-xs font-bold text-slate-800 block">Faculty / Mentor Consent</label>
             <div className="flex flex-col sm:flex-row gap-4 text-xs">
@@ -387,6 +349,7 @@ export default function ApplyForm() {
             )}
           </div>
 
+          {/* Mandatory Enclosures */}
           <div className="space-y-3 border-t pt-4">
             <h3 className="text-sm font-bold text-slate-800">Mandatory File Uploads</h3>
             
@@ -403,6 +366,7 @@ export default function ApplyForm() {
             )}
           </div>
 
+          {/* Submit Button */}
           <button disabled={submitting} type="submit" className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-lg text-sm transition">
             {submitting ? 'Submitting Application...' : 'Submit Official Application Form'}
           </button>

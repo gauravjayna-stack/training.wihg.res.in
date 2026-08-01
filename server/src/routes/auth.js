@@ -1,13 +1,13 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../utils/prisma');
-const { requireAuth } = require('../middleware/auth');
+const prisma = require('../utils/prisma'); // Adjust relative path if needed
 
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'wihg_default_secret_key_change_in_prod';
 
+// Helper function to generate JWT token
 function generateToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
@@ -16,33 +16,7 @@ function generateToken(user) {
   );
 }
 
-// 1. GET /api/auth/me
-router.get('/me', requireAuth, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        phone: true,
-        createdAt: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found.' });
-    }
-
-    return res.json(user);
-  } catch (error) {
-    console.error('Fetch user profile error:', error);
-    return res.status(500).json({ error: 'Failed to fetch user profile.' });
-  }
-});
-
-// 2. LOGIN ROUTE
+// 1. LOGIN ROUTE (POST /api/auth/login)
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -69,7 +43,7 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: user.role, // STUDENT, SCIENTIST, ACCOUNTS, ADMIN
       }
     });
   } catch (error) {
@@ -78,7 +52,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 3. REGISTER STUDENT ROUTE
+// 2. REGISTER STUDENT ROUTE (POST /api/auth/register)
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone } = req.body || {};
@@ -125,7 +99,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 4. CHANGE PASSWORD ROUTE
+// 3. CHANGE PASSWORD ROUTE (POST /api/auth/change-password)
 router.post('/change-password', async (req, res) => {
   try {
     const { email, oldPassword, newPassword } = req.body || {};
@@ -157,7 +131,7 @@ router.post('/change-password', async (req, res) => {
   }
 });
 
-// 5. FORGOT PASSWORD ROUTE
+// 4. FORGOT PASSWORD ROUTE (POST /api/auth/forgot-password)
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};

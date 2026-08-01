@@ -6,6 +6,7 @@ const { makeUploader } = require('../utils/upload');
 const router = express.Router();
 const uploadJoining = makeUploader('joining');
 
+// Helper to generate a unique Enrolment Number (e.g. WIHG/2026/001)
 async function generateEnrolmentNo() {
   const year = new Date().getFullYear();
   const count = await prisma.joiningRecord.count();
@@ -13,7 +14,7 @@ async function generateEnrolmentNo() {
   return `WIHG/${year}/${serial}`;
 }
 
-// GET pre-fill details
+// GET pre-fill details for Day 1 Joining Form
 router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async (req, res) => {
   try {
     const app = await prisma.application.findUnique({
@@ -29,8 +30,10 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
       return res.status(400).json({ error: 'This application is not cleared for joining.' });
     }
 
+    // Auto-generate enrolment number
     const enrolmentNo = await generateEnrolmentNo();
 
+    // Check if joining record already exists
     const existingJoining = await prisma.joiningRecord.findUnique({
       where: { applicationId: app.id },
     });
@@ -38,7 +41,7 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
     return res.json({
       applicationId: app.id,
       enrolmentNo: existingJoining?.enrolmentNo || enrolmentNo,
-      type: app.type,
+      type: app.type, // 'INTERNSHIP' or 'DISSERTATION'
       name: app.student?.name || '',
       email: app.student?.email || '',
       phone: app.student?.phone || '',
@@ -56,7 +59,7 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
   }
 });
 
-// STUDENT: submit Joining Form
+// STUDENT: submit physical Joining Form on Day 1
 router.post(
   '/:applicationId',
   requireAuth,
@@ -84,12 +87,21 @@ router.post(
       }
 
       const {
+        enrolmentNo,
         joiningDate,
+        fatherName,
+        dob,
+        gender,
+        nationality,
+        aadhaarNo,
+        emergencyContact,
+        address,
         durationFrom,
         durationTo,
         declarationAccepted,
       } = req.body;
 
+      // Validation
       if (!declarationAccepted || declarationAccepted === 'false') {
         return res.status(400).json({ error: 'You must accept the declaration to submit the joining form.' });
       }
@@ -98,59 +110,88 @@ router.post(
         return res.status(400).json({ error: 'Joining date and duration dates are required.' });
       }
 
-      const parseSafeDate = (d) => {
-        if (!d) return null;
-        const parsed = new Date(d);
-        return isNaN(parsed.getTime()) ? null : parsed;
-      };
-
-      const startDate = parseSafeDate(durationFrom);
-      const endDate = parseSafeDate(durationTo);
-
-      if (!startDate || !endDate || endDate <= startDate) {
+      // Calculate Duration in months
+      const start = new Date(durationFrom);
+      const end = new Date(durationTo);
+      if (end <= start) {
         return res.status(400).json({ error: 'End date must be after start date.' });
       }
 
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffMonths = Math.round(diffDays / 30);
+
+      if (app.type === 'INTERNSHIP') {
+        if (diffDays < 28 || diffMonths > 3) {
+          return res.status(400).json({ error: 'Internship duration must be between 1 month and 3 months.' });
+        }
+      } else if (app.type === 'DISSERTATION') {
+        if (diffDays < 28 || diffMonths > 6) {
+          return res.status(400).json({ error: 'Dissertation duration must be between 1 month and 6 months.' });
+        }
+      }
+
+      // Enclosure verification
       const photoFile = req.files?.photo?.[0];
+      const signatureFile = req.files?.signature?.[0];
       const collegeIdFile = req.files?.collegeId?.[0];
       const idProofFile = req.files?.idProof?.[0];
       const feeReceiptFile = req.files?.feeReceipt?.[0];
 
-      if (!photoFile || !collegeIdFile || !idProofFile || !feeReceiptFile) {
+      if (!photoFile || !signatureFile || !collegeIdFile || !idProofFile || !feeReceiptFile) {
         return res.status(400).json({
-          error: 'All mandatory enclosures (Passport Photo, College ID, Identity Proof, and Fee Receipt) must be uploaded.',
+          error: 'All mandatory enclosures (Passport Photo, Signature Image, College ID, Identity Proof, and Fee Receipt) must be uploaded.',
         });
       }
 
-      const joining = await prisma.joiningRecord.upsert({
-        where: { applicationId: app.id },
-        update: {
-          physicalVerificationStatus: 'PENDING',
-        },
-        create: {
-          applicationId: app.id,
-          physicalVerificationStatus: 'PENDING',
-        },
+      const finalEnrolmentNo = enrolmentNo || (await generateEnrolmentNo());
+
+      const joiningData = {
+        applicationId: app.id,
+        enrolmentNo: finalEnrolmentNo,
+        joiningDate: new Date(joiningDate),
+        fatherName,
+        dob: dob ? new Date(dob) : null,
+        gender,
+        nationality,
+        aadhaarNo,
+        emergencyContact,
+        address,
+        durationFrom: new Date(durationFrom),
+        durationTo: new Date(durationTo),
+        totalMonths: diffMonths,
+        photoFile: `/uploads/joining/${photoFile.filename}`,
+        collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
+        idProofFile: `/uploads/joining/${idProofFile.filename}`,
+        feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
+      };
+
+      if (signatureFile) {
+        joiningData.signatureFile = `/uploads/joining/${signatureFile.filename}`;
+      }
+
+      const joining = await prisma.joiningRecord.create({
+        data: joiningData,
       });
 
       await prisma.application.update({
         where: { id: app.id },
         data: {
           status: 'ONBOARDED',
-          startDate,
-          endDate,
+          startDate: new Date(durationFrom),
+          endDate: new Date(durationTo),
         },
       });
 
-      return res.status(201).json(joining);
+      res.status(201).json(joining);
     } catch (error) {
-      console.error('Joining form submission runtime error:', error);
-      return res.status(500).json({ error: error.message || 'Failed to process joining submission.' });
+      console.error('Joining form submission error:', error);
+      res.status(500).json({ error: 'Failed to process joining submission.' });
     }
   }
 );
 
-// ADMIN/ACCOUNTS: pending joinings
+// ADMIN/ACCOUNTS: list joining records awaiting physical verification
 router.get('/pending', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async (req, res) => {
   try {
     const records = await prisma.joiningRecord.findMany({
@@ -165,7 +206,7 @@ router.get('/pending', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async (req
   }
 });
 
-// ADMIN/ACCOUNTS: mark verified
+// ADMIN/ACCOUNTS: mark physical joining verification complete
 router.patch('/:id/verify', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async (req, res) => {
   try {
     const joining = await prisma.joiningRecord.findUnique({ where: { id: req.params.id } });
