@@ -208,4 +208,9 @@ router.patch('/:id/verify', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async
     res.status(500).json({ error: 'Failed to verify joining record.' });
   }
 });
+<<<<<<< HEAD
 module.exports = router;
+=======
+
+module.exports = router;
+>>>>>>> 6686c8e3ce19b75e67c795e3655e09c5684334c9
