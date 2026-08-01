@@ -24,22 +24,22 @@ export default function CertificateRequest() {
   }
 
   async function onSubmit(e) {
-    e.preventDefault();
-    if (!report) return setError('Please attach your final report/thesis PDF.');
-    setSubmitting(true);
-    setError(null);
-    const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => v && fd.append(k, v));
-    fd.append('report', report);
-    try {
-      await api.post(`/certificates/${id}/request`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      navigate('/student');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Submission failed.');
-    } finally {
-      setSubmitting(false);
-    }
+  e.preventDefault();
+  if (!report) return setError('Please attach your final report/thesis PDF.');
+  setSubmitting(true);
+  setError(null);
+  const fd = new FormData();
+  Object.entries(form).forEach(([k, v]) => v && fd.append(k, v));
+  fd.append('report', report);
+  try {
+    await api.post(`/certificates/${id}/request`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+    navigate('/student');
+  } catch (err) {
+    setError(err.response?.data?.error || 'Submission failed.');
+  } finally {
+    setSubmitting(false);
   }
+}
 
   const input = 'w-full border rounded px-3 py-2 text-sm mt-1';
   const label = 'text-sm font-medium';

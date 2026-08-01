@@ -5,11 +5,11 @@ import api from '../../api';
 export default function ApplyForm() {
   const navigate = useNavigate();
   const [scientists, setScientists] = useState([]);
-  const [mode, setMode] = useState('AUTO'); // 'AUTO' | 'DIRECT'
+  const [mode, setMode] = useState('AUTO');
   const [loadingProfile, setLoadingProfile] = useState(true);
 
   const [form, setForm] = useState({
-    type: 'INTERNSHIP', // 'INTERNSHIP' | 'DISSERTATION'
+    type: 'INTERNSHIP',
     year: new Date().getFullYear().toString(),
     fullName: '',
     fatherOrHusbandName: '',
@@ -26,7 +26,7 @@ export default function ApplyForm() {
     maritalStatus: 'Single',
     identificationMark: '',
     nationality: 'Indian',
-    category: 'General', // SC/ST/OBC/General
+    category: 'General',
     categoryDetails: '',
     academicRecords: [
       { exam: 'High School (10th)', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' },
@@ -49,10 +49,8 @@ export default function ApplyForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // 1. Fetch available scientists
     api.get('/scientists').then((res) => setScientists(res.data)).catch(() => {});
 
-    // 2. Fetch logged-in user profile to auto-fill registration data
     api.get('/auth/me')
       .then((res) => {
         const user = res.data;
@@ -131,7 +129,6 @@ export default function ApplyForm() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       <div className="bg-white shadow-lg rounded-xl p-6 sm:p-8 border border-gray-200">
         
-        {/* Form Title Header */}
         <div className="text-center border-b pb-4 mb-6">
           <h2 className="text-sm font-bold uppercase text-gray-600">WADIA INSTITUTE OF HIMALAYAN GEOLOGY</h2>
           <h1 className="text-xl font-extrabold text-slate-800">APPLICATION FORM FOR DISSERTATION WORK / INTERNSHIP PROGRAMME</h1>
@@ -141,7 +138,6 @@ export default function ApplyForm() {
 
         <form onSubmit={onSubmit} className="space-y-6">
           
-          {/* Program Type and Year */}
           <div className="grid sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
             <div>
               <label className={labelClass}>Programme Applying For *</label>
@@ -156,7 +152,6 @@ export default function ApplyForm() {
             </div>
           </div>
 
-          {/* Personal Details */}
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-1">1. Personal Information</h3>
             
@@ -258,7 +253,6 @@ export default function ApplyForm() {
             </div>
           </div>
 
-          {/* Academic Qualifications Table */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-800 border-b pb-1">8. Academic Qualifications (Commencing from High School)</h3>
             <div className="overflow-x-auto">
@@ -299,7 +293,6 @@ export default function ApplyForm() {
             </div>
           </div>
 
-          {/* Additional Particulars */}
           <div className="space-y-4">
             <div>
               <label className={labelClass}>9. Have you been punished during your studies at College/University?</label>
@@ -322,7 +315,6 @@ export default function ApplyForm() {
             </div>
           </div>
 
-          {/* Mentor Assignment Selection */}
           <div className="bg-slate-50 p-4 rounded-lg border space-y-3">
             <label className="text-xs font-bold text-slate-800 block">Faculty / Mentor Consent</label>
             <div className="flex flex-col sm:flex-row gap-4 text-xs">
@@ -349,7 +341,6 @@ export default function ApplyForm() {
             )}
           </div>
 
-          {/* Mandatory Enclosures */}
           <div className="space-y-3 border-t pt-4">
             <h3 className="text-sm font-bold text-slate-800">Mandatory File Uploads</h3>
             
@@ -366,7 +357,6 @@ export default function ApplyForm() {
             )}
           </div>
 
-          {/* Submit Button */}
           <button disabled={submitting} type="submit" className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-lg text-sm transition">
             {submitting ? 'Submitting Application...' : 'Submit Official Application Form'}
           </button>

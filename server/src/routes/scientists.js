@@ -15,9 +15,7 @@ router.get('/', async (req, res) => {
   res.json(scientists);
 });
 
-// Public: send a pre-contact inquiry email to a scientist. This does NOT
-// create an Application — it's an informal introduction step. The student
-// still needs to submit the formal Application Form afterward.
+// Public: send a pre-contact inquiry email to a scientist.
 router.post('/:id/contact', async (req, res) => {
   const { id } = req.params;
   const { studentName, studentEmail, message, proposedDuration } = req.body || {};

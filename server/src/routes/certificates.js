@@ -9,7 +9,7 @@ const { sendMail, templates } = require('../utils/email');
 const router = express.Router();
 const uploadReport = makeUploader('reports');
 
-// STUDENT: submit final report + feedback to request certificate issuance.
+// STUDENT: submit final report
 router.post('/:applicationId/request', requireAuth, requireRole('STUDENT'), uploadReport.single('report'), async (req, res) => {
   const app = await prisma.application.findUnique({ where: { id: req.params.applicationId } });
   if (!app || app.studentId !== req.user.id) return res.status(404).json({ error: 'Application not found.' });
@@ -34,7 +34,7 @@ router.post('/:applicationId/request', requireAuth, requireRole('STUDENT'), uplo
   res.status(201).json({ ok: true });
 });
 
-// PUBLIC: certificate verification endpoint (what the QR code points to).
+// PUBLIC: certificate verification
 router.get('/verify/:certNo', async (req, res) => {
   const certNo = decodeURIComponent(req.params.certNo);
   const certificate = await prisma.certificate.findUnique({
@@ -57,7 +57,7 @@ router.get('/verify/:certNo', async (req, res) => {
   });
 });
 
-// ADMIN: one-click certificate generation (requires scientist sign-off first).
+// ADMIN: generate certificate
 router.post('/:applicationId/generate', requireAuth, requireRole('ADMIN'), async (req, res) => {
   const app = await prisma.application.findUnique({
     where: { id: req.params.applicationId },

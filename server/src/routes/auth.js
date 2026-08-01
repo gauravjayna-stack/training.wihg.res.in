@@ -16,7 +16,7 @@ function generateToken(user) {
   );
 }
 
-// 1. GET /api/auth/me (Fetch Current Authenticated User)
+// 1. GET /api/auth/me
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -42,7 +42,7 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
-// 2. LOGIN ROUTE (POST /api/auth/login)
+// 2. LOGIN ROUTE
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -78,7 +78,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 3. REGISTER STUDENT ROUTE (POST /api/auth/register)
+// 3. REGISTER STUDENT ROUTE
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone } = req.body || {};
@@ -125,7 +125,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 4. CHANGE PASSWORD ROUTE (POST /api/auth/change-password)
+// 4. CHANGE PASSWORD ROUTE
 router.post('/change-password', async (req, res) => {
   try {
     const { email, oldPassword, newPassword } = req.body || {};
@@ -157,7 +157,7 @@ router.post('/change-password', async (req, res) => {
   }
 });
 
-// 5. FORGOT PASSWORD ROUTE (POST /api/auth/forgot-password)
+// 5. FORGOT PASSWORD ROUTE
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};

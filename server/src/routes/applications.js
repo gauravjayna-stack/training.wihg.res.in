@@ -6,7 +6,6 @@ const { sendMail, templates } = require('../utils/email');
 
 const router = express.Router();
 
-// Validation schema accepting all the extended profile & application fields
 const applySchema = z.object({
   type: z.enum(['INTERNSHIP', 'DISSERTATION']),
   year: z.string().optional(),
@@ -38,7 +37,7 @@ const applySchema = z.object({
   autoAssignRequested: z.boolean().optional(),
 });
 
-// STUDENT: submit the Application Form
+// STUDENT: submit Application Form
 router.post('/', requireAuth, requireRole('STUDENT'), async (req, res) => {
   try {
     const parsed = applySchema.safeParse(req.body);
@@ -51,7 +50,6 @@ router.post('/', requireAuth, requireRole('STUDENT'), async (req, res) => {
       return res.status(400).json({ error: 'Select a scientist or request auto-allocation.' });
     }
 
-    // Fetch user details from database to enforce locked registration data
     const studentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
     });
@@ -60,7 +58,6 @@ router.post('/', requireAuth, requireRole('STUDENT'), async (req, res) => {
       return res.status(404).json({ error: 'Student account not found.' });
     }
 
-    // Save application using registered user info for locked fields
     const application = await prisma.application.create({
       data: {
         studentId: req.user.id,
@@ -123,7 +120,7 @@ router.get('/mine', requireAuth, requireRole('STUDENT'), async (req, res) => {
   }
 });
 
-// GET /api/applications (Fetch all applications with status filter for staff/admin)
+// GET /api/applications
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
@@ -148,7 +145,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// SCIENTIST: approve/disapprove a request directed to them
+// SCIENTIST: decision
 router.patch('/:id/scientist-decision', requireAuth, requireRole('SCIENTIST'), async (req, res) => {
   try {
     const { decision, note } = req.body || {};
@@ -192,7 +189,7 @@ router.patch('/:id/scientist-decision', requireAuth, requireRole('SCIENTIST'), a
   }
 });
 
-// SCIENTIST: confirm completion & sign off
+// SCIENTIST: signoff
 router.patch('/:id/signoff', requireAuth, requireRole('SCIENTIST'), async (req, res) => {
   try {
     const app = await prisma.application.findUnique({ where: { id: req.params.id } });

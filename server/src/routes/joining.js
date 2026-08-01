@@ -6,7 +6,6 @@ const { makeUploader } = require('../utils/upload');
 const router = express.Router();
 const uploadJoining = makeUploader('joining');
 
-// Helper to generate a unique Enrolment Number
 async function generateEnrolmentNo() {
   const year = new Date().getFullYear();
   const count = await prisma.joiningRecord.count();
@@ -14,7 +13,7 @@ async function generateEnrolmentNo() {
   return `WIHG/${year}/${serial}`;
 }
 
-// GET pre-fill details for Day 1 Joining Form
+// GET pre-fill details
 router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async (req, res) => {
   try {
     const app = await prisma.application.findUnique({
@@ -57,7 +56,7 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
   }
 });
 
-// STUDENT: submit physical Joining Form on Day 1
+// STUDENT: submit Joining Form
 router.post(
   '/:applicationId',
   requireAuth,
@@ -151,7 +150,7 @@ router.post(
   }
 );
 
-// ADMIN/ACCOUNTS: list joining records awaiting physical verification
+// ADMIN/ACCOUNTS: pending joinings
 router.get('/pending', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async (req, res) => {
   try {
     const records = await prisma.joiningRecord.findMany({
@@ -166,7 +165,7 @@ router.get('/pending', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async (req
   }
 });
 
-// ADMIN/ACCOUNTS: mark physical joining verification complete
+// ADMIN/ACCOUNTS: mark verified
 router.patch('/:id/verify', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async (req, res) => {
   try {
     const joining = await prisma.joiningRecord.findUnique({ where: { id: req.params.id } });
