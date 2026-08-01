@@ -217,4 +217,3 @@ router.patch('/:id/verify', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async
 });
 
 module.exports = router;
-gaurav
