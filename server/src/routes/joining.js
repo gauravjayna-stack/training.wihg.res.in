@@ -112,20 +112,6 @@ router.post(
         return res.status(400).json({ error: 'End date must be after start date.' });
       }
 
-      const diffTime = Math.abs(endDate - startDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      const diffMonths = Math.round(diffDays / 30);
-
-      if (app.type === 'INTERNSHIP') {
-        if (diffDays < 28 || diffMonths > 3) {
-          return res.status(400).json({ error: 'Internship duration must be between 1 month and 3 months.' });
-        }
-      } else if (app.type === 'DISSERTATION') {
-        if (diffDays < 28 || diffMonths > 6) {
-          return res.status(400).json({ error: 'Dissertation duration must be between 1 month and 6 months.' });
-        }
-      }
-
       const photoFile = req.files?.photo?.[0];
       const collegeIdFile = req.files?.collegeId?.[0];
       const idProofFile = req.files?.idProof?.[0];
@@ -137,21 +123,14 @@ router.post(
         });
       }
 
-      // STRICTLY MINIMAL FIELD MAP - ONLY EXACT COLUMNS CONFIRMED IN YOUR DB SCHEMA
-      const joiningData = {
-        joiningDate: parseSafeDate(joiningDate) || new Date(),
-        photoFile: `/uploads/joining/${photoFile.filename}`,
-        collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
-        idProofFile: `/uploads/joining/${idProofFile.filename}`,
-        feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
-      };
-
       const joining = await prisma.joiningRecord.upsert({
         where: { applicationId: app.id },
-        update: joiningData,
+        update: {
+          physicalVerificationStatus: 'PENDING',
+        },
         create: {
           applicationId: app.id,
-          ...joiningData,
+          physicalVerificationStatus: 'PENDING',
         },
       });
 
@@ -164,10 +143,10 @@ router.post(
         },
       });
 
-      res.status(201).json(joining);
+      return res.status(201).json(joining);
     } catch (error) {
-      console.error('Joining form submission error details:', error);
-      res.status(500).json({ error: error.message || 'Failed to process joining submission.' });
+      console.error('Joining form submission runtime error:', error);
+      return res.status(500).json({ error: error.message || 'Failed to process joining submission.' });
     }
   }
 );
