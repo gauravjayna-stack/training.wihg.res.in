@@ -110,14 +110,21 @@ router.post(
         return res.status(400).json({ error: 'Joining date and duration dates are required.' });
       }
 
-      // Calculate Duration in months
-      const start = new Date(durationFrom);
-      const end = new Date(durationTo);
-      if (end <= start) {
+      // Safe date parsing helper
+      const parseSafeDate = (d) => {
+        if (!d) return null;
+        const parsed = new Date(d);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      };
+
+      const startDate = parseSafeDate(durationFrom);
+      const endDate = parseSafeDate(durationTo);
+
+      if (!startDate || !endDate || endDate <= startDate) {
         return res.status(400).json({ error: 'End date must be after start date.' });
       }
 
-      const diffTime = Math.abs(end - start);
+      const diffTime = Math.abs(endDate - startDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const diffMonths = Math.round(diffDays / 30);
 
@@ -147,46 +154,48 @@ router.post(
       const finalEnrolmentNo = enrolmentNo || (await generateEnrolmentNo());
 
       const joiningData = {
-        applicationId: app.id,
         enrolmentNo: finalEnrolmentNo,
-        joiningDate: new Date(joiningDate),
-        fatherName,
-        dob: dob ? new Date(dob) : null,
-        gender,
-        nationality,
-        aadhaarNo,
-        emergencyContact,
-        address,
-        durationFrom: new Date(durationFrom),
-        durationTo: new Date(durationTo),
+        joiningDate: parseSafeDate(joiningDate) || new Date(),
+        fatherName: fatherName || '',
+        dob: parseSafeDate(dob),
+        gender: gender || 'Male',
+        nationality: nationality || 'Indian',
+        aadhaarNo: aadhaarNo || null,
+        emergencyContact: emergencyContact || '',
+        address: address || '',
+        durationFrom: startDate,
+        durationTo: endDate,
         totalMonths: diffMonths,
         photoFile: `/uploads/joining/${photoFile.filename}`,
+        signatureFile: signatureFile ? `/uploads/joining/${signatureFile.filename}` : null,
         collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
         idProofFile: `/uploads/joining/${idProofFile.filename}`,
         feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
       };
 
-      if (signatureFile) {
-        joiningData.signatureFile = `/uploads/joining/${signatureFile.filename}`;
-      }
-
-      const joining = await prisma.joiningRecord.create({
-        data: joiningData,
+      // Upsert record to safely handle repeated submissions
+      const joining = await prisma.joiningRecord.upsert({
+        where: { applicationId: app.id },
+        update: joiningData,
+        create: {
+          applicationId: app.id,
+          ...joiningData,
+        },
       });
 
       await prisma.application.update({
         where: { id: app.id },
         data: {
           status: 'ONBOARDED',
-          startDate: new Date(durationFrom),
-          endDate: new Date(durationTo),
+          startDate,
+          endDate,
         },
       });
 
       res.status(201).json(joining);
     } catch (error) {
-      console.error('Joining form submission error:', error);
-      res.status(500).json({ error: 'Failed to process joining submission.' });
+      console.error('Joining form submission error details:', error);
+      res.status(500).json({ error: error.message || 'Failed to process joining submission.' });
     }
   }
 );
