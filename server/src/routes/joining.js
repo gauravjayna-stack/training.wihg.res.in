@@ -88,13 +88,6 @@ router.post(
 
       const {
         joiningDate,
-        fatherName,
-        dob,
-        gender,
-        nationality,
-        aadhaarNo,
-        emergencyContact,
-        address,
         durationFrom,
         durationTo,
         declarationAccepted,
@@ -139,37 +132,28 @@ router.post(
 
       // Enclosure verification
       const photoFile = req.files?.photo?.[0];
-      const signatureFile = req.files?.signature?.[0];
       const collegeIdFile = req.files?.collegeId?.[0];
       const idProofFile = req.files?.idProof?.[0];
       const feeReceiptFile = req.files?.feeReceipt?.[0];
 
-      if (!photoFile || !signatureFile || !collegeIdFile || !idProofFile || !feeReceiptFile) {
+      if (!photoFile || !collegeIdFile || !idProofFile || !feeReceiptFile) {
         return res.status(400).json({
-          error: 'All mandatory enclosures (Passport Photo, Signature Image, College ID, Identity Proof, and Fee Receipt) must be uploaded.',
+          error: 'All mandatory enclosures (Passport Photo, College ID, Identity Proof, and Fee Receipt) must be uploaded.',
         });
       }
 
+      // Explicitly construct data using only core schema fields to avoid runtime argument errors
       const joiningData = {
         joiningDate: parseSafeDate(joiningDate) || new Date(),
-        fatherName: fatherName || '',
-        dob: parseSafeDate(dob),
-        gender: gender || 'Male',
-        nationality: nationality || 'Indian',
-        aadhaarNo: aadhaarNo || null,
-        emergencyContact: emergencyContact || '',
-        address: address || '',
         durationFrom: startDate,
         durationTo: endDate,
-        totalMonths: diffMonths,
         photoFile: `/uploads/joining/${photoFile.filename}`,
-        signatureFile: signatureFile ? `/uploads/joining/${signatureFile.filename}` : null,
         collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
         idProofFile: `/uploads/joining/${idProofFile.filename}`,
         feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
       };
 
-      // Upsert record safely without invalid arguments
+      // Upsert record safely without extra arguments
       const joining = await prisma.joiningRecord.upsert({
         where: { applicationId: app.id },
         update: joiningData,
