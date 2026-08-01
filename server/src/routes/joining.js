@@ -142,18 +142,16 @@ router.post(
         });
       }
 
-      // Explicitly construct data using only core schema fields to avoid runtime argument errors
+      // Strictly map ONLY the fields confirmed to exist on your database model
       const joiningData = {
         joiningDate: parseSafeDate(joiningDate) || new Date(),
-        durationFrom: startDate,
-        durationTo: endDate,
         photoFile: `/uploads/joining/${photoFile.filename}`,
         collegeIdFile: `/uploads/joining/${collegeIdFile.filename}`,
         idProofFile: `/uploads/joining/${idProofFile.filename}`,
         feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
       };
 
-      // Upsert record safely without extra arguments
+      // Upsert record safely
       const joining = await prisma.joiningRecord.upsert({
         where: { applicationId: app.id },
         update: joiningData,
@@ -163,6 +161,7 @@ router.post(
         },
       });
 
+      // Update the main Application record with start and end dates
       await prisma.application.update({
         where: { id: app.id },
         data: {
