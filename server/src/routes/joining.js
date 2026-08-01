@@ -6,7 +6,7 @@ const { makeUploader } = require('../utils/upload');
 const router = express.Router();
 const uploadJoining = makeUploader('joining');
 
-// Helper to generate a unique Enrolment Number (e.g. WIHG/2026/001)
+// Helper to generate a unique Enrolment Number
 async function generateEnrolmentNo() {
   const year = new Date().getFullYear();
   const count = await prisma.joiningRecord.count();
@@ -30,10 +30,8 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
       return res.status(400).json({ error: 'This application is not cleared for joining.' });
     }
 
-    // Auto-generate enrolment number
     const enrolmentNo = await generateEnrolmentNo();
 
-    // Check if joining record already exists
     const existingJoining = await prisma.joiningRecord.findUnique({
       where: { applicationId: app.id },
     });
@@ -41,7 +39,7 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
     return res.json({
       applicationId: app.id,
       enrolmentNo: existingJoining?.enrolmentNo || enrolmentNo,
-      type: app.type, // 'INTERNSHIP' or 'DISSERTATION'
+      type: app.type,
       name: app.student?.name || '',
       email: app.student?.email || '',
       phone: app.student?.phone || '',
@@ -93,7 +91,6 @@ router.post(
         declarationAccepted,
       } = req.body;
 
-      // Validation
       if (!declarationAccepted || declarationAccepted === 'false') {
         return res.status(400).json({ error: 'You must accept the declaration to submit the joining form.' });
       }
@@ -102,7 +99,6 @@ router.post(
         return res.status(400).json({ error: 'Joining date and duration dates are required.' });
       }
 
-      // Safe date parsing helper
       const parseSafeDate = (d) => {
         if (!d) return null;
         const parsed = new Date(d);
@@ -130,7 +126,6 @@ router.post(
         }
       }
 
-      // Enclosure verification
       const photoFile = req.files?.photo?.[0];
       const collegeIdFile = req.files?.collegeId?.[0];
       const idProofFile = req.files?.idProof?.[0];
@@ -142,7 +137,7 @@ router.post(
         });
       }
 
-      // Strictly map ONLY the fields confirmed to exist on your database model
+      // STRICTLY MINIMAL FIELD MAP - ONLY EXACT COLUMNS CONFIRMED IN YOUR DB SCHEMA
       const joiningData = {
         joiningDate: parseSafeDate(joiningDate) || new Date(),
         photoFile: `/uploads/joining/${photoFile.filename}`,
@@ -151,7 +146,6 @@ router.post(
         feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
       };
 
-      // Upsert record safely
       const joining = await prisma.joiningRecord.upsert({
         where: { applicationId: app.id },
         update: joiningData,
@@ -161,7 +155,6 @@ router.post(
         },
       });
 
-      // Update the main Application record with start and end dates
       await prisma.application.update({
         where: { id: app.id },
         data: {
@@ -217,4 +210,3 @@ router.patch('/:id/verify', requireAuth, requireRole('ADMIN', 'ACCOUNTS'), async
 });
 
 module.exports = router;
-gaurav
