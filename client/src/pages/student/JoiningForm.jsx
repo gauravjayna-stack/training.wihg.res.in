@@ -161,7 +161,6 @@ export default function JoiningForm() {
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('enrolmentNo', enrolmentNo);
       formData.append('joiningDate', joiningDate);
       formData.append('fatherName', fatherName);
       formData.append('dob', dob);

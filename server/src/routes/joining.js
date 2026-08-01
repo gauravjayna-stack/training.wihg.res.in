@@ -87,7 +87,6 @@ router.post(
       }
 
       const {
-        enrolmentNo,
         joiningDate,
         fatherName,
         dob,
@@ -151,10 +150,7 @@ router.post(
         });
       }
 
-      const finalEnrolmentNo = enrolmentNo || (await generateEnrolmentNo());
-
       const joiningData = {
-        enrolmentNo: finalEnrolmentNo,
         joiningDate: parseSafeDate(joiningDate) || new Date(),
         fatherName: fatherName || '',
         dob: parseSafeDate(dob),
@@ -173,7 +169,7 @@ router.post(
         feeReceiptFile: `/uploads/joining/${feeReceiptFile.filename}`,
       };
 
-      // Upsert record to safely handle repeated submissions
+      // Upsert record safely without invalid arguments
       const joining = await prisma.joiningRecord.upsert({
         where: { applicationId: app.id },
         update: joiningData,
