@@ -5,10 +5,9 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Secret key for JWT
 const JWT_SECRET = process.env.JWT_SECRET || 'wihg-secret-key-2026';
 
-// Middleware to verify JWT Token
+// Auth middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -22,15 +21,17 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// ----------------------------------------------------
 // REGISTER ROUTE
-// ----------------------------------------------------
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone, collegeName, degreeName, degreeType } = req.body;
+    const { name, email, password, phone, collegeName, degreeName } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    if (!collegeName || !degreeName) {
+      return res.status(400).json({ error: 'College Name and Degree Name are required' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -46,9 +47,8 @@ router.post('/register', async (req, res) => {
         email,
         passwordHash,
         phone: phone || null,
-        collegeName: collegeName || null,
-        degreeName: degreeName || null,
-        degreeType: degreeType || null,
+        collegeName,
+        degreeName,
         role: 'STUDENT',
       },
     });
@@ -60,9 +60,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ----------------------------------------------------
 // LOGIN ROUTE
-// ----------------------------------------------------
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -97,7 +95,6 @@ router.post('/login', async (req, res) => {
         phone: user.phone,
         collegeName: user.collegeName,
         degreeName: user.degreeName,
-        degreeType: user.degreeType,
       },
     });
   } catch (error) {
@@ -106,9 +103,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// GET CURRENT USER PROFILE ROUTE
-// ----------------------------------------------------
+// GET LOGGED IN USER DATA
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
@@ -120,7 +115,6 @@ router.get('/me', authenticateToken, async (req, res) => {
         phone: true,
         collegeName: true,
         degreeName: true,
-        degreeType: true,
         role: true,
       },
     });
