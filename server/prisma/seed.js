@@ -13,7 +13,7 @@ async function main() {
       data: {
         name: 'Training Cell Admin',
         email: adminEmail,
-        passwordHash: await bcrypt.hash(adminPassword, 12),
+        password: await bcrypt.hash(adminPassword, 12),
         role: 'ADMIN',
       },
     });
@@ -26,7 +26,7 @@ async function main() {
       data: {
         name: 'Accounts Section',
         email: 'accounts@wihg.res.in',
-        passwordHash: await bcrypt.hash('ChangeMe123!', 12),
+        password: await bcrypt.hash('ChangeMe123!', 12),
         role: 'ACCOUNTS',
       },
     });
@@ -43,7 +43,7 @@ async function main() {
     const existingUser = await prisma.user.findUnique({ where: { email: s.email } });
     if (existingUser) continue;
     const user = await prisma.user.create({
-      data: { name: s.name, email: s.email, passwordHash: await bcrypt.hash('ChangeMe123!', 12), role: 'SCIENTIST' },
+      data: { name: s.name, email: s.email, password: await bcrypt.hash('ChangeMe123!', 12), role: 'SCIENTIST' },
     });
     await prisma.scientist.create({
       data: { userId: user.id, name: s.name, specialization: s.specialization, email: s.email, availableSeats: 3 },
@@ -56,5 +56,8 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
   .finally(async () => prisma.$disconnect());
