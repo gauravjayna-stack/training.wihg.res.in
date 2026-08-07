@@ -43,12 +43,12 @@ export default function ApplyForm() {
 
   const fetchInitialData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('wihg_token');
       const authHeader = { headers: { Authorization: `Bearer ${token}` } };
 
-      // Fetch active scientists list
+      // Fetch active scientists list safely
       const scientistRes = await axios.get('/api/scientists', authHeader).catch(() => ({ data: [] }));
-      setScientists(scientistRes.data || []);
+      setScientists(Array.isArray(scientistRes.data) ? scientistRes.data : []);
 
       // Pre-fill user data from AuthContext or fallback /api/auth/me call
       if (user) {
@@ -94,7 +94,7 @@ export default function ApplyForm() {
     setError('');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('wihg_token');
       const res = await axios.post('/api/applications', formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -297,7 +297,7 @@ export default function ApplyForm() {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
               >
                 <option value="">-- Select a Scientist --</option>
-                {scientists.map((s) => (
+                {Array.isArray(scientists) && scientists.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.specialization}) - Seats: {s.availableSeats}
                   </option>
