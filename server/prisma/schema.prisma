@@ -1,134 +1,153 @@
-// WIHG Internship & Dissertation Management System
-// Default datasource is SQLite for zero-config local/dev use.
-// For production on Postgres, change provider to "postgresql" and set DATABASE_URL
-// to a postgres connection string (see DEPLOYMENT_LINUX.md).
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
 
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-enum Role {
-  ADMIN
-  ACCOUNTS
-  SCIENTIST
-  STUDENT
-}
-
-enum ApplicationType {
-  INTERNSHIP
-  DISSERTATION
-}
-
-enum ApplicationStatus {
-  PENDING_SCIENTIST      // waiting on scientist pre-contact response (optional stage)
-  PENDING_APPROVAL       // submitted, waiting on Admin/Training Cell approval
-  FEE_PAYMENT_NEEDED     // approved, student must pay
-  VERIFICATION_PENDING   // payment submitted, waiting on Accounts verification
-  APPROVED_FOR_JOINING   // fee verified (or waived), can submit joining form
-  ONBOARDED              // joining form submitted & verified
-  IN_PROGRESS            // physically joined, tenure ongoing
-  COMPLETION_PENDING     // student requested certificate, awaiting scientist sign-off
-  CERTIFICATE_READY      // admin approved, certificate generated
-  REJECTED
-}
-
-enum PaymentStatus {
-  PENDING
-  VERIFIED
-  REJECTED
-}
-
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         Role
-  name         String
-  phone        String?
-  department   String?
-  createdAt    DateTime @default(now())
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   // STUDENT, SCIENTIST, ACCOUNTS, ADMIN
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  scientist    Scientist?
-  applications Application[]      @relation("StudentApplications")
-  verifiedPayments Payment[]      @relation("VerifiedBy")
+  studentProfile   StudentProfile?
+  scientistProfile ScientistProfile?
+  auditLogs        AuditLog[]
 }
 
-model Scientist {
-  id             String   @id @default(cuid())
+model StudentProfile {
+  id             String   @id @default(uuid())
   userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id])
-  name           String
-  specialization String
-  email          String
-  availableSeats Int      @default(0)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone          String?
+  university     String?
+  college        String?
+  course         String?
+  discipline     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
   applications   Application[]
 }
 
+model ScientistProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department    String?
+  maxStudents   Int      @default(5)
+  signaturePath String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignedApplications Application[]
+}
+
+model AdminSignature {
+  id        String   @id @default(uuid())
+  type      String   @unique // DIRECTOR, COORDINATOR
+  name      String
+  path      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Application {
-  id                  String            @id @default(cuid())
+  id                  String   @id @default(uuid())
   studentId           String
-  student             User              @relation("StudentApplications", fields: [studentId], references: [id])
-  type                ApplicationType
+  student             StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
   scientistId         String?
-  scientist           Scientist?        @relation(fields: [scientistId], references: [id])
-  autoAssignRequested  Boolean          @default(false)
-  status              ApplicationStatus @default(PENDING_APPROVAL)
-  collegeName         String
+  scientist           ScientistProfile? @relation(fields: [scientistId], references: [id], onDelete: SetNull)
+  
+  programme           String   // Internship, Dissertation
   topic               String?
-  durationMonths      Int
-  startDate           DateTime?
-  endDate             DateTime?
-  feeWaived           Boolean           @default(false)
-  waiverReason         String?
-  rejectionReason      String?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  proposedStartDate  DateTime?
+  proposedEndDate    DateTime?
+  actualStartDate    DateTime?
+  actualEndDate      DateTime?
+  status              String   @default("SUBMITTED") // SUBMITTED, APPROVED_SCIENTIST, FEE_VERIFIED, JOINED, REJECTED, COMPLETED
+  
+  feeStatus           String   @default("PENDING") // PENDING, PAID, VERIFIED, WAIVED
+  utrNumber           String?
+  receiptPath         String?
+  feeWaived           Boolean  @default(false)
+  waiverReason        String?
 
-  payment      Payment?
-  joining      JoiningRecord?
-  certificate  Certificate?
+  joiningSubmitted    Boolean  @default(false)
+  joiningDate         DateTime?
+
+  reportAbstract      String?
+  reportPdfPath       String?
+  feedback            String?
+
+  isLocked            Boolean  @default(false)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  weeklyProgresses    WeeklyProgress[]
+  certificateApproval CertificateApproval?
+  reportUploads       ReportUpload[]
 }
 
-model Payment {
-  id                 String        @id @default(cuid())
-  applicationId       String        @unique
-  application         Application  @relation(fields: [applicationId], references: [id])
-  utrNumber           String
-  receiptFile         String
-  amount              Float
-  status              PaymentStatus @default(PENDING)
-  verifiedById        String?
-  verifiedBy          User?         @relation("VerifiedBy", fields: [verifiedById], references: [id])
-  verifiedAt          DateTime?
-  createdAt           DateTime      @default(now())
+model WeeklyProgress {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  weekNumber    Int
+  statusLabel   String      // e.g., "Week 1 Completed", "Literature Review"
+  remarks       String?
+  updatedBy     String
+  createdAt     DateTime    @default(now())
 }
 
-model JoiningRecord {
-  id                        String    @id @default(cuid())
-  applicationId              String   @unique
-  application                Application @relation(fields: [applicationId], references: [id])
-  joiningDate                DateTime
-  physicalVerificationStatus String    @default("PENDING") // PENDING | VERIFIED
-  idProofFile                String?
-  feeReceiptFile              String?
-  createdAt                  DateTime @default(now())
+model CertificateApproval {
+  id               String      @id @default(uuid())
+  applicationId    String      @unique
+  application      Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  certificateNo    String      @unique
+  studentName      String
+  scientistName    String
+  university       String
+  college          String
+  course           String
+  topic            String
+  duration         String
+  issueDate        DateTime    @default(now())
+  
+  supervisorName   String?
+  coordinatorName  String?
+  directorName     String?
+  
+  remarks          String?
+  status           String      @default("PENDING_ADMIN") // PENDING_ADMIN, GENERATED, ISSUED, REJECTED
+  pdfPath          String?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 }
 
-model Certificate {
-  id             String   @id @default(cuid())
-  applicationId  String   @unique
-  application    Application @relation(fields: [applicationId], references: [id])
-  uniqueCertNo   String   @unique
-  issueDate      DateTime @default(now())
-  qrCodeUrl      String
-  pdfPath        String?
-  reportFilePath String?
-  scientistSignoff Boolean @default(false)
-  adminApproved    Boolean @default(false)
-  feedbackSubmitted Boolean @default(false)
+model ReportUpload {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  filePath      String
+  uploadedBy    String      // SCIENTIST, STUDENT, ADMIN
+  createdAt     DateTime    @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
 }
