@@ -45,7 +45,7 @@ router.post('/:id/contact', async (req, res) => {
 
 // Scientist dashboard: applications assigned/pre-contacted to me.
 router.get('/me/applications', requireAuth, requireRole('SCIENTIST'), async (req, res) => {
-  const scientist = await prisma.scientist.findUnique({ where: { userId: req.user.id } });
+  const scientist = await prisma.scientist.findUnique({ where: { userId: req.user.userId } });
   if (!scientist) return res.status(404).json({ error: 'Scientist profile not found for this account.' });
 
   const applications = await prisma.application.findMany({
