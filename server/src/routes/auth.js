@@ -30,7 +30,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    // Fixed: Changed user.passwordHash to user.password
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
@@ -70,15 +71,21 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'An account with this email already exists.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Fixed: Using password field instead of passwordHash
+    // Optional phone is set up inside StudentProfile relation
     const newUser = await prisma.user.create({
       data: {
         name,
         email,
-        passwordHash,
-        phone: phone || null,
+        password: hashedPassword,
         role: 'STUDENT',
+        studentProfile: {
+          create: {
+            phone: phone || null,
+          },
+        },
       },
     });
 
@@ -113,15 +120,16 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ error: 'User with this email does not exist.' });
     }
 
-    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+    // Fixed: Changed user.passwordHash to user.password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
       return res.status(400).json({ error: 'Incorrect current password.' });
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { email },
-      data: { passwordHash },
+      data: { password: hashedPassword },
     });
 
     return res.json({ message: 'Password updated successfully! You can now log in.' });
