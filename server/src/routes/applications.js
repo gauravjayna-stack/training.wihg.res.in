@@ -1,228 +1,341 @@
-const express = require('express');
-const { z } = require('zod');
-const prisma = require('../utils/prisma');
-const { requireAuth, requireRole } = require('../middleware/auth');
-const { sendMail, templates } = require('../utils/email');
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
-const router = express.Router();
+export default function ApplicationForm() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [scientists, setScientists] = useState([]);
+  const [error, setError] = useState('');
 
-const applySchema = z.object({
-  type: z.enum(['INTERNSHIP', 'DISSERTATION']),
-  year: z.string().optional(),
-  fullName: z.string().optional(),
-  fatherOrHusbandName: z.string().min(1, "Father's / Husband's Name is required"),
-  addressCorrespondence: z.string().min(1, 'Address for Correspondence is required'),
-  addressPermanent: z.string().min(1, 'Permanent Address is required'),
-  phoneNo: z.string().optional(),
-  email: z.string().optional(),
-  dob: z.string().optional(),
-  placeOfBirth: z.string().optional(),
-  ageYears: z.union([z.number(), z.string()]).optional(),
-  ageMonths: z.union([z.number(), z.string()]).optional(),
-  ageDays: z.union([z.number(), z.string()]).optional(),
-  gender: z.string().optional(),
-  maritalStatus: z.string().optional(),
-  identificationMark: z.string().optional(),
-  nationality: z.string().optional(),
-  category: z.string().optional(),
-  academicRecords: z.any().optional(),
-  punishedDetails: z.string().optional(),
-  prizesAndAwards: z.string().optional(),
-  specialTraining: z.string().optional(),
-  researchInterest: z.string().min(1, 'Research Interest is required'),
-  collegeName: z.string().optional(),
-  degreeName: z.string().optional(),
-  durationMonths: z.union([z.number(), z.string()]).optional(),
-  topic: z.string().optional(),
-  scientistId: z.string().optional(),
-  autoAssignRequested: z.boolean().optional(),
-});
+  const [formData, setFormData] = useState({
+    type: 'INTERNSHIP',
+    fullName: '',
+    email: '',
+    phoneNo: '',
+    collegeName: '',
+    degreeName: '',
+    year: '',
+    fatherOrHusbandName: '',
+    addressCorrespondence: '',
+    addressPermanent: '',
+    dob: '',
+    placeOfBirth: '',
+    gender: 'Male',
+    maritalStatus: 'Single',
+    nationality: 'Indian',
+    category: 'General',
+    durationMonths: 2,
+    topic: '',
+    scientistId: '',
+    autoAssignRequested: false,
+    researchInterest: '',
+    prizesAndAwards: '',
+    specialTraining: '',
+  });
 
-// STUDENT: submit the Application Form
-router.post('/', requireAuth, requireRole('STUDENT'), async (req, res) => {
-  try {
-    const parsed = applySchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.errors[0].message });
+  useEffect(() => {
+    fetchProfileAndScientists();
+  }, []);
+
+  const fetchProfileAndScientists = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+
+      // 1. Fetch current logged-in user details to auto-fill
+      const profileRes = await axios.get('/api/auth/me', authHeader);
+      const user = profileRes.data;
+
+      // 2. Fetch active scientists list
+      const scientistRes = await axios.get('/api/scientists', authHeader).catch(() => ({ data: [] }));
+
+      setScientists(scientistRes.data || []);
+
+      // Auto-populate form fields from existing profile
+      setFormData((prev) => ({
+        ...prev,
+        fullName: user.name || '',
+        email: user.email || '',
+        phoneNo: user.phone || '',
+        collegeName: user.collegeName || '',
+        degreeName: user.degreeName || '',
+      }));
+    } catch (err) {
+      console.error('Error loading initial data:', err);
+      setError('Failed to load user profile. Please login again.');
+    } finally {
+      setLoading(false);
     }
-    const data = parsed.data;
+  };
 
-    if (!data.scientistId && !data.autoAssignRequested) {
-      return res.status(400).json({ error: 'Select a scientist or request auto-allocation.' });
-    }
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
 
-    // Fetch user details from database to enforce locked registration data
-    const studentUser = await prisma.user.findUnique({
-      where: { id: req.user.id },
-    });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
 
-    if (!studentUser) {
-      return res.status(404).json({ error: 'Student account not found.' });
-    }
-
-    // Save application using registered user info for locked fields
-    const application = await prisma.application.create({
-      data: {
-        studentId: req.user.id,
-        type: data.type,
-        year: data.year || new Date().getFullYear().toString(),
-        fullName: studentUser.name || studentUser.fullName || data.fullName,
-        email: studentUser.email,
-        phoneNo: studentUser.phone || data.phoneNo,
-        collegeName: studentUser.collegeName || data.collegeName || 'N/A',
-        degreeName: studentUser.degreeName || data.degreeName || null,
-        fatherOrHusbandName: data.fatherOrHusbandName,
-        addressCorrespondence: data.addressCorrespondence,
-        addressPermanent: data.addressPermanent,
-        dob: data.dob ? new Date(data.dob) : null,
-        placeOfBirth: data.placeOfBirth || null,
-        ageYears: data.ageYears ? parseInt(data.ageYears) : null,
-        ageMonths: data.ageMonths ? parseInt(data.ageMonths) : null,
-        ageDays: data.ageDays ? parseInt(data.ageDays) : null,
-        gender: data.gender || 'Male',
-        maritalStatus: data.maritalStatus || 'Single',
-        identificationMark: data.identificationMark || null,
-        nationality: data.nationality || 'Indian',
-        category: data.category || 'General',
-        academicRecords: data.academicRecords ? JSON.stringify(data.academicRecords) : null,
-        punishedDetails: data.punishedDetails || null,
-        prizesAndAwards: data.prizesAndAwards || null,
-        specialTraining: data.specialTraining || null,
-        researchInterest: data.researchInterest,
-        durationMonths: data.durationMonths ? parseInt(data.durationMonths) : 1,
-        topic: data.topic || null,
-        scientistId: data.scientistId || null,
-        autoAssignRequested: !!data.autoAssignRequested,
-        status: 'PENDING_APPROVAL',
-      },
-    });
-
-    if (studentUser.email) {
-      const t = templates.registered(studentUser.name);
-      await sendMail({ to: studentUser.email, subject: t.subject, html: t.html });
-    }
-
-    res.status(201).json(application);
-  } catch (error) {
-    console.error('Submit application error:', error);
-    res.status(500).json({ error: 'Failed to submit application.' });
-  }
-});
-
-// STUDENT: my applications
-router.get('/mine', requireAuth, requireRole('STUDENT'), async (req, res) => {
-  try {
-    const applications = await prisma.application.findMany({
-      where: { studentId: req.user.id },
-      include: { scientist: true, payment: true, joining: true, certificate: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json(applications);
-  } catch (error) {
-    console.error('Fetch student applications error:', error);
-    res.json([]);
-  }
-});
-
-// Staff/Admin fetching route
-router.get('/', async (req, res) => {
-  try {
-    const { status } = req.query;
-    const where = status && status !== 'ALL' ? { status } : {};
-
-    const applications = await prisma.application.findMany({
-      where,
-      include: {
-        student: true,
-        scientist: true,
-        payment: true,
-        joining: true,
-        certificate: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    res.json(applications || []);
-  } catch (error) {
-    console.error('Error fetching applications:', error);
-    res.json([]);
-  }
-});
-
-// SCIENTIST: approve/disapprove
-router.patch('/:id/scientist-decision', requireAuth, requireRole('SCIENTIST'), async (req, res) => {
-  try {
-    const { decision, note } = req.body || {};
-    const app = await prisma.application.findUnique({
-      where: { id: req.params.id },
-      include: { student: true, scientist: true },
-    });
-    if (!app) return res.status(404).json({ error: 'Application not found.' });
-
-    const scientist = await prisma.scientist.findUnique({ where: { userId: req.user.id } });
-    if (!scientist || app.scientistId !== scientist.id) {
-      return res.status(403).json({ error: 'This application is not assigned to you.' });
-    }
-
-    if (decision === 'APPROVE') {
-      const updated = await prisma.application.update({
-        where: { id: app.id },
-        data: { status: 'FEE_PAYMENT_NEEDED' },
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/applications', formData, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (app.student?.email) {
-        const t = templates.approved(app.student.name);
-        await sendMail({ to: app.student.email, subject: t.subject, html: t.html });
+
+      if (res.status === 201 || res.status === 200) {
+        alert('Application submitted successfully!');
+        navigate('/dashboard');
       }
-      return res.json(updated);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to submit application.');
+    } finally {
+      setSubmitting(false);
     }
-    if (decision === 'REJECT') {
-      const updated = await prisma.application.update({
-        where: { id: app.id },
-        data: { status: 'REJECTED', rejectionReason: note || 'Not accepted by scientist.' },
-      });
-      if (app.student?.email) {
-        const t = templates.rejected(app.student.name, updated.rejectionReason);
-        await sendMail({ to: app.student.email, subject: t.subject, html: t.html });
-      }
-      return res.json(updated);
-    }
-    res.status(400).json({ error: "decision must be 'APPROVE' or 'REJECT'." });
-  } catch (error) {
-    console.error('Scientist decision error:', error);
-    res.status(500).json({ error: 'Failed to process scientist decision.' });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-gray-600 font-medium">Loading form details...</div>
+      </div>
+    );
   }
-});
 
-// SCIENTIST: confirm completion & sign off
-router.patch('/:id/signoff', requireAuth, requireRole('SCIENTIST'), async (req, res) => {
-  try {
-    const app = await prisma.application.findUnique({ where: { id: req.params.id } });
-    if (!app) return res.status(404).json({ error: 'Application not found.' });
+  return (
+    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="bg-white shadow rounded-lg p-6 sm:p-8 border border-gray-200">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Application Form</h1>
+        <p className="text-sm text-gray-600 mb-6">
+          Wadia Institute of Himalayan Geology — Training & Dissertation Program
+        </p>
 
-    const scientist = await prisma.scientist.findUnique({ where: { userId: req.user.id } });
-    if (!scientist || app.scientistId !== scientist.id) {
-      return res.status(403).json({ error: 'This application is not assigned to you.' });
-    }
-    if (app.status !== 'COMPLETION_PENDING') {
-      return res.status(400).json({ error: 'This application has not requested certificate completion yet.' });
-    }
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-sm">
+            {error}
+          </div>
+        )}
 
-    const certificate = await prisma.certificate.upsert({
-      where: { applicationId: app.id },
-      update: { scientistSignoff: true },
-      create: {
-        applicationId: app.id,
-        uniqueCertNo: `PENDING-${app.id}`,
-        qrCodeUrl: '',
-        scientistSignoff: true,
-      },
-    });
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Application Type */}
+          <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
+            <label className="block text-sm font-semibold text-blue-900 mb-1">
+              Application Category *
+            </label>
+            <select
+              name="type"
+              value={formData.type}
+              onChange={handleChange}
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+            >
+              <option value="INTERNSHIP">Internship</option>
+              <option value="DISSERTATION">Dissertation</option>
+            </select>
+          </div>
 
-    res.json(certificate);
-  } catch (error) {
-    console.error('Signoff error:', error);
-    res.status(500).json({ error: 'Failed to complete signoff.' });
-  }
-});
+          {/* Personal Information */}
+          <div className="border-t border-gray-200 pt-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  required
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
 
-module.exports = router;
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email Address *</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                  readOnly
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Mobile Phone *</label>
+                <input
+                  type="tel"
+                  name="phoneNo"
+                  required
+                  value={formData.phoneNo}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Father / Husband Name</label>
+                <input
+                  type="text"
+                  name="fatherOrHusbandName"
+                  value={formData.fatherOrHusbandName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                <input
+                  type="date"
+                  name="dob"
+                  value={formData.dob}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Academic Information */}
+          <div className="border-t border-gray-200 pt-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Academic Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">College / University Name *</label>
+                <input
+                  type="text"
+                  name="collegeName"
+                  required
+                  value={formData.collegeName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Degree Name *</label>
+                <input
+                  type="text"
+                  name="degreeName"
+                  required
+                  value={formData.degreeName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Current Year / Semester</label>
+                <input
+                  type="text"
+                  name="year"
+                  placeholder="e.g. 3rd Year / 6th Sem"
+                  value={formData.year}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Duration (in months) *</label>
+                <input
+                  type="number"
+                  name="durationMonths"
+                  min="1"
+                  max="12"
+                  required
+                  value={formData.durationMonths}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Supervisor Selection */}
+          <div className="border-t border-gray-200 pt-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Scientist / Supervisor Choice</h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">Select Supervisor</label>
+              <select
+                name="scientistId"
+                value={formData.scientistId}
+                onChange={handleChange}
+                disabled={formData.autoAssignRequested}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+              >
+                <option value="">-- Select a Scientist --</option>
+                {scientists.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.specialization}) - Seats: {s.availableSeats}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="autoAssignRequested"
+                name="autoAssignRequested"
+                checked={formData.autoAssignRequested}
+                onChange={handleChange}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="autoAssignRequested" className="ml-2 text-sm text-gray-700">
+                Auto-assign supervisor based on institute availability
+              </label>
+            </div>
+          </div>
+
+          {/* Research Topic */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Proposed Topic / Field of Research</label>
+            <textarea
+              name="topic"
+              rows={3}
+              value={formData.topic}
+              onChange={handleChange}
+              placeholder="Briefly describe your proposed area of work or topic..."
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
+          </div>
+
+          {/* Submit */}
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {submitting ? 'Submitting Application...' : 'Submit Application'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

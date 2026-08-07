@@ -1,59 +1,139 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-export default function Register() {
-  const { register } = useAuth();
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', collegeName: '', degreeName: '' });
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+// Secret key for JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'wihg-secret-key-2026';
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await register(form);
-      navigate('/student');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed.');
-    } finally {
-      setLoading(false);
+// Middleware to verify JWT Token
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.status(401).json({ error: 'Access token required' });
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    req.user = user;
+    next();
+  });
+};
+
+// ----------------------------------------------------
+// REGISTER ROUTE
+// ----------------------------------------------------
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password, phone, collegeName, degreeName, degreeType } = req.body;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
     }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists with this email' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        phone: phone || null,
+        collegeName: collegeName || null,
+        degreeName: degreeName || null,
+        degreeType: degreeType || null,
+        role: 'STUDENT',
+      },
+    });
+
+    res.status(201).json({ message: 'User registered successfully', userId: user.id });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error during registration' });
   }
+});
 
-  return (
-    <div className="max-w-sm mx-auto mt-12 bg-white shadow rounded-lg p-6">
-      <h1 className="text-xl font-bold text-wihg-navy mb-1">Student Sign Up</h1>
-      
-      <div className="mb-4 mt-2 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800 font-medium leading-relaxed">
-        <strong>Important:</strong> Only B.Tech students in a relevant field and PG (Post Graduate) students in a relevant field are allowed to apply.
-      </div>
+// ----------------------------------------------------
+// LOGIN ROUTE
+// ----------------------------------------------------
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-      <form onSubmit={onSubmit} className="space-y-3">
-        <input required placeholder="Full name" className="w-full border rounded px-3 py-2 text-sm"
-          value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input required type="email" placeholder="Email" className="w-full border rounded px-3 py-2 text-sm"
-          value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        <input required placeholder="Phone Number" className="w-full border rounded px-3 py-2 text-sm"
-          value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <input required placeholder="College / University Name" className="w-full border rounded px-3 py-2 text-sm"
-          value={form.collegeName} onChange={(e) => setForm({ ...form, collegeName: e.target.value })} />
-        <input required placeholder="Degree Name (e.g., B.Tech Geology)" className="w-full border rounded px-3 py-2 text-sm"
-          value={form.degreeName} onChange={(e) => setForm({ ...form, degreeName: e.target.value })} />
-        <input required type="password" minLength={8} placeholder="Password (min 8 characters)" className="w-full border rounded px-3 py-2 text-sm"
-          value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        
-        {error && <p className="text-red-700 text-xs">{error}</p>}
-        
-        <button disabled={loading} className="w-full bg-wihg-navy text-white rounded py-2 text-sm font-medium disabled:opacity-50 mt-2">
-          {loading ? 'Creating account…' : 'Create account'}
-        </button>
-      </form>
-      <p className="text-xs text-gray-500 mt-4 text-center">
-        Already have an account? <Link to="/login" className="text-wihg-navy font-bold">Log in</Link>
-      </p>
-    </div>
-  );
-}
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, role: user.role, email: user.email, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        collegeName: user.collegeName,
+        degreeName: user.degreeName,
+        degreeType: user.degreeType,
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error during login' });
+  }
+});
+
+// ----------------------------------------------------
+// GET CURRENT USER PROFILE ROUTE
+// ----------------------------------------------------
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        collegeName: true,
+        degreeName: true,
+        degreeType: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Fetch profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
+module.exports = router;

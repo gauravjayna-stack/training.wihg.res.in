@@ -1,162 +1,138 @@
 const express = require('express');
+const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../utils/prisma');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'wihg_default_secret_key_change_in_prod';
+// Secret key for JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'wihg-secret-key-2026';
 
-function generateToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-}
+// Middleware to verify JWT Token
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-// 1. LOGIN ROUTE
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
+  if (!token) return res.status(401).json({ error: 'Access token required' });
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
-    }
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
+    req.user = user;
+    next();
+  });
+};
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(400).json({ error: 'Invalid email or password.' });
-    }
-
-    // Matches schema.prisma field: passwordHash
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid email or password.' });
-    }
-
-    const token = generateToken(user);
-
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        phone: user.phone,
-        collegeName: user.collegeName,
-        degreeName: user.degreeName
-      }
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    return res.status(500).json({ error: 'Login failed due to a server error.' });
-  }
-});
-
-// 2. REGISTER STUDENT ROUTE
+// ----------------------------------------------------
+// REGISTER ROUTE
+// ----------------------------------------------------
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone, collegeName, degreeName } = req.body || {};
+    const { name, email, password, phone, collegeName, degreeName, degreeType } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are required.' });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'An account with this email already exists.' });
+      return res.status(400).json({ error: 'User already exists with this email' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // Saving directly to User model as defined in schema.prisma
-    const newUser = await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         name,
         email,
-        passwordHash: hashedPassword,
+        passwordHash,
         phone: phone || null,
         collegeName: collegeName || null,
         degreeName: degreeName || null,
+        degreeType: degreeType || null,
         role: 'STUDENT',
       },
     });
 
-    const token = generateToken(newUser);
-
-    return res.status(201).json({
-      token,
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
-        phone: newUser.phone,
-        collegeName: newUser.collegeName,
-        degreeName: newUser.degreeName
-      }
-    });
+    res.status(201).json({ message: 'User registered successfully', userId: user.id });
   } catch (error) {
     console.error('Registration error:', error);
-    return res.status(500).json({ error: 'Registration failed due to a server error.' });
+    res.status(500).json({ error: 'Internal server error during registration' });
   }
 });
 
-// 3. CHANGE PASSWORD ROUTE
-router.post('/change-password', async (req, res) => {
+// ----------------------------------------------------
+// LOGIN ROUTE
+// ----------------------------------------------------
+router.post('/login', async (req, res) => {
   try {
-    const { email, oldPassword, newPassword } = req.body || {};
+    const { email, password } = req.body;
 
-    if (!email || !oldPassword || !newPassword) {
-      return res.status(400).json({ error: 'Email, current password, and new password are required.' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(400).json({ error: 'User with this email does not exist.' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      return res.status(400).json({ error: 'Incorrect current password.' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-    await prisma.user.update({
-      where: { email },
-      data: { passwordHash: hashedPassword },
+    const token = jwt.sign(
+      { userId: user.id, role: user.role, email: user.email, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        collegeName: user.collegeName,
+        degreeName: user.degreeName,
+        degreeType: user.degreeType,
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error during login' });
+  }
+});
+
+// ----------------------------------------------------
+// GET CURRENT USER PROFILE ROUTE
+// ----------------------------------------------------
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        collegeName: true,
+        degreeName: true,
+        degreeType: true,
+        role: true,
+      },
     });
 
-    return res.json({ message: 'Password updated successfully! You can now log in.' });
-  } catch (error) {
-    console.error('Change password error:', error);
-    return res.status(500).json({ error: 'Failed to update password.' });
-  }
-});
-
-// 4. FORGOT PASSWORD ROUTE
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body || {};
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email address is required.' });
-    }
-
-    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.json({ message: 'If an account exists for this email, instructions have been logged/sent.' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    return res.json({ message: 'Password reset request received. Please contact admin or check your email.' });
+    res.json(user);
   } catch (error) {
-    console.error('Forgot password error:', error);
-    return res.status(500).json({ error: 'Failed to process forgot password request.' });
+    console.error('Fetch profile error:', error);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
   }
 });
 
