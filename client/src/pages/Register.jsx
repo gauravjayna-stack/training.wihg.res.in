@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+// Replace this:
+// import axios from 'axios';
+
+// With this:
+import api from '../api'; // Adjust path relative to your api.js location
 
 const ALLOWED_DEGREES = [
   'B.Tech / B.E. (Relevant Field)',
@@ -33,7 +37,11 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/auth/register', formData);
+      // Replace this:
+// const response = await axios.post('/api/auth/register', formData);
+
+// With this:
+const response = await api.post('/auth/register', formData);
       if (response.status === 201) {
         alert('Registration successful! Please log in to complete your application.');
         navigate('/login');
