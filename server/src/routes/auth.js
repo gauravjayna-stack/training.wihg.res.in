@@ -1,13 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../utils/prisma'); // Adjust relative path if needed
+const prisma = require('../utils/prisma');
 
 const router = express.Router();
-
 const JWT_SECRET = process.env.JWT_SECRET || 'wihg_default_secret_key_change_in_prod';
 
-// Helper function to generate JWT token
 function generateToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
@@ -16,7 +14,7 @@ function generateToken(user) {
   );
 }
 
-// 1. LOGIN ROUTE (POST /api/auth/login)
+// 1. LOGIN ROUTE
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -30,8 +28,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
-    // Fixed: Changed user.passwordHash to user.password
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Matches schema.prisma field: passwordHash
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
@@ -44,7 +42,10 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role, // STUDENT, SCIENTIST, ACCOUNTS, ADMIN
+        role: user.role,
+        phone: user.phone,
+        collegeName: user.collegeName,
+        degreeName: user.degreeName
       }
     });
   } catch (error) {
@@ -53,10 +54,10 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 2. REGISTER STUDENT ROUTE (POST /api/auth/register)
+// 2. REGISTER STUDENT ROUTE
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body || {};
+    const { name, email, password, phone, collegeName, degreeName } = req.body || {};
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
@@ -73,19 +74,16 @@ router.post('/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Fixed: Using password field instead of passwordHash
-    // Optional phone is set up inside StudentProfile relation
+    // Saving directly to User model as defined in schema.prisma
     const newUser = await prisma.user.create({
       data: {
         name,
         email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
+        phone: phone || null,
+        collegeName: collegeName || null,
+        degreeName: degreeName || null,
         role: 'STUDENT',
-        studentProfile: {
-          create: {
-            phone: phone || null,
-          },
-        },
       },
     });
 
@@ -98,6 +96,9 @@ router.post('/register', async (req, res) => {
         email: newUser.email,
         name: newUser.name,
         role: newUser.role,
+        phone: newUser.phone,
+        collegeName: newUser.collegeName,
+        degreeName: newUser.degreeName
       }
     });
   } catch (error) {
@@ -106,7 +107,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 3. CHANGE PASSWORD ROUTE (POST /api/auth/change-password)
+// 3. CHANGE PASSWORD ROUTE
 router.post('/change-password', async (req, res) => {
   try {
     const { email, oldPassword, newPassword } = req.body || {};
@@ -120,8 +121,7 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ error: 'User with this email does not exist.' });
     }
 
-    // Fixed: Changed user.passwordHash to user.password
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
     if (!isMatch) {
       return res.status(400).json({ error: 'Incorrect current password.' });
     }
@@ -129,7 +129,7 @@ router.post('/change-password', async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { email },
-      data: { password: hashedPassword },
+      data: { passwordHash: hashedPassword },
     });
 
     return res.json({ message: 'Password updated successfully! You can now log in.' });
@@ -139,7 +139,7 @@ router.post('/change-password', async (req, res) => {
   }
 });
 
-// 4. FORGOT PASSWORD ROUTE (POST /api/auth/forgot-password)
+// 4. FORGOT PASSWORD ROUTE
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body || {};

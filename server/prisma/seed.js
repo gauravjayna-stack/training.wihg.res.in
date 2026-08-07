@@ -14,7 +14,7 @@ async function main() {
       data: {
         name: 'Training Cell Admin',
         email: adminEmail,
-        password: await bcrypt.hash(adminPassword, 12),
+        passwordHash: await bcrypt.hash(adminPassword, 12),
         role: 'ADMIN',
       },
     });
@@ -28,35 +28,37 @@ async function main() {
       data: {
         name: 'Accounts Section',
         email: 'accounts@wihg.res.in',
-        password: await bcrypt.hash('ChangeMe123!', 12),
+        passwordHash: await bcrypt.hash('ChangeMe123!', 12),
         role: 'ACCOUNTS',
       },
     });
     console.log('Created accounts account: accounts@wihg.res.in');
   }
 
-  // 3. Seed Sample Scientists with ScientistProfile
+  // 3. Seed Sample Scientists with Scientist record
   const sampleScientists = [
-    { name: 'Dr. A. Sharma', department: 'Seismology & Geodynamics', email: 'a.sharma@wihg.res.in' },
-    { name: 'Dr. R. Bhattacharya', department: 'Paleoclimatology', email: 'r.bhattacharya@wihg.res.in' },
-    { name: 'Dr. S. Rawat', department: 'Structural Geology', email: 's.rawat@wihg.res.in' },
+    { name: 'Dr. A. Sharma', specialization: 'Seismology & Geodynamics', email: 'a.sharma@wihg.res.in' },
+    { name: 'Dr. R. Bhattacharya', specialization: 'Paleoclimatology', email: 'r.bhattacharya@wihg.res.in' },
+    { name: 'Dr. S. Rawat', specialization: 'Structural Geology', email: 's.rawat@wihg.res.in' },
   ];
 
   for (const s of sampleScientists) {
     const existingUser = await prisma.user.findUnique({ where: { email: s.email } });
     if (existingUser) continue;
 
-    // Create User record and linked ScientistProfile record simultaneously
+    // Create User record and linked Scientist record simultaneously
     await prisma.user.create({
       data: {
         name: s.name,
         email: s.email,
-        password: await bcrypt.hash('ChangeMe123!', 12),
+        passwordHash: await bcrypt.hash('ChangeMe123!', 12),
         role: 'SCIENTIST',
-        scientistProfile: {
+        scientist: {
           create: {
-            department: s.department,
-            maxStudents: 5,
+            name: s.name,
+            email: s.email,
+            specialization: s.specialization,
+            availableSeats: 5,
           },
         },
       },

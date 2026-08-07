@@ -6,7 +6,6 @@ const { sendMail, templates } = require('../utils/email');
 
 const router = express.Router();
 
-// Validation schema accepting all the extended profile & application fields
 const applySchema = z.object({
   type: z.enum(['INTERNSHIP', 'DISSERTATION']),
   year: z.string().optional(),
@@ -32,6 +31,7 @@ const applySchema = z.object({
   specialTraining: z.string().optional(),
   researchInterest: z.string().min(1, 'Research Interest is required'),
   collegeName: z.string().optional(),
+  degreeName: z.string().optional(),
   durationMonths: z.union([z.number(), z.string()]).optional(),
   topic: z.string().optional(),
   scientistId: z.string().optional(),
@@ -68,7 +68,9 @@ router.post('/', requireAuth, requireRole('STUDENT'), async (req, res) => {
         year: data.year || new Date().getFullYear().toString(),
         fullName: studentUser.name || studentUser.fullName || data.fullName,
         email: studentUser.email,
-        phoneNo: studentUser.phone || studentUser.phoneNo || data.phoneNo,
+        phoneNo: studentUser.phone || data.phoneNo,
+        collegeName: studentUser.collegeName || data.collegeName || 'N/A',
+        degreeName: studentUser.degreeName || data.degreeName || null,
         fatherOrHusbandName: data.fatherOrHusbandName,
         addressCorrespondence: data.addressCorrespondence,
         addressPermanent: data.addressPermanent,
@@ -87,7 +89,6 @@ router.post('/', requireAuth, requireRole('STUDENT'), async (req, res) => {
         prizesAndAwards: data.prizesAndAwards || null,
         specialTraining: data.specialTraining || null,
         researchInterest: data.researchInterest,
-        collegeName: data.collegeName || 'N/A',
         durationMonths: data.durationMonths ? parseInt(data.durationMonths) : 1,
         topic: data.topic || null,
         scientistId: data.scientistId || null,
@@ -123,7 +124,7 @@ router.get('/mine', requireAuth, requireRole('STUDENT'), async (req, res) => {
   }
 });
 
-// GET /api/applications (Fetch all applications with status filter for staff/admin)
+// Staff/Admin fetching route
 router.get('/', async (req, res) => {
   try {
     const { status } = req.query;
@@ -148,7 +149,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// SCIENTIST: approve/disapprove a request directed to them
+// SCIENTIST: approve/disapprove
 router.patch('/:id/scientist-decision', requireAuth, requireRole('SCIENTIST'), async (req, res) => {
   try {
     const { decision, note } = req.body || {};
