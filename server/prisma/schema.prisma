@@ -153,7 +153,7 @@ model Certificate {
   qrCodeUrl         String
   pdfPath           String?
   reportFilePath    String?
-  scientistSignoff  Boolean     @default(false)
+  scientistSignoff Boolean     @default(false)
   adminApproved     Boolean     @default(false)
   feedbackSubmitted Boolean     @default(false)
 }
