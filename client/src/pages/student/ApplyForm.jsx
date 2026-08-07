@@ -1,377 +1,347 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api';
+import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ApplyForm() {
   const navigate = useNavigate();
-  const { user } = useAuth(); // Safely fetches current logged-in user data
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [scientists, setScientists] = useState([]);
-  const [mode, setMode] = useState('AUTO'); // 'AUTO' | 'DIRECT'
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [error, setError] = useState('');
 
-  const [form, setForm] = useState({
-    type: 'INTERNSHIP', // Dropdown default
-    year: new Date().getFullYear().toString(),
+  const [formData, setFormData] = useState({
+    type: 'INTERNSHIP',
     fullName: '',
+    email: '',
+    phoneNo: '',
+    collegeName: '',
+    degreeName: '',
+    year: '',
     fatherOrHusbandName: '',
     addressCorrespondence: '',
     addressPermanent: '',
-    phoneNo: '',
-    email: '',
-    collegeName: '',
-    degreeName: '',
     dob: '',
     placeOfBirth: '',
-    ageYears: '',
-    ageMonths: '',
-    ageDays: '',
     gender: 'Male',
     maritalStatus: 'Single',
-    identificationMark: '',
     nationality: 'Indian',
     category: 'General',
-    categoryDetails: '',
-    academicRecords: [
-      { exam: 'High School (10th)', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' },
-      { exam: 'Intermediate (12th)', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' },
-      { exam: 'Bachelor Degree', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' },
-      { exam: 'Master Degree (Pursuing/Completed)', subject: '', year: '', division: '', percentage: '', board: '', distinctions: '' }
-    ],
-    punishedDetails: '',
-    prizesAndAwards: '',
-    specialTraining: '',
-    researchInterest: '',
-    durationMonths: 1,
+    durationMonths: 2,
     topic: '',
     scientistId: '',
+    autoAssignRequested: false,
+    researchInterest: '',
+    prizesAndAwards: '',
+    specialTraining: '',
   });
 
-  const [hodLetter, setHodLetter] = useState(null);
-  const [categoryCert, setCategoryCert] = useState(null);
-  const [error, setError] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-
   useEffect(() => {
-    // 1. Fetch available scientists
-    api.get('/scientists').then((res) => setScientists(res.data)).catch(() => {});
-
-    // 2. Pre-fill from AuthContext instead of relying on a missing backend route
-    if (user) {
-      setForm((prev) => ({
-        ...prev,
-        fullName: user.name || prev.fullName,
-        email: user.email || prev.email,
-        phoneNo: user.phone || prev.phoneNo,
-        collegeName: user.collegeName || prev.collegeName,
-        degreeName: user.degreeName || prev.degreeName,
-      }));
-      setLoadingProfile(false);
-    } else {
-      // In case user context takes a moment to mount
-      const timer = setTimeout(() => setLoadingProfile(false), 1500);
-      return () => clearTimeout(timer);
-    }
+    fetchInitialData();
   }, [user]);
 
-  const handleAcademicChange = (index, field, value) => {
-    const updated = [...form.academicRecords];
-    updated[index][field] = value;
-    setForm({ ...form, academicRecords: updated });
+  const fetchInitialData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+
+      // Fetch active scientists list
+      const scientistRes = await axios.get('/api/scientists', authHeader).catch(() => ({ data: [] }));
+      setScientists(scientistRes.data || []);
+
+      // Pre-fill user data from AuthContext or fallback /api/auth/me call
+      if (user) {
+        setFormData((prev) => ({
+          ...prev,
+          fullName: user.name || '',
+          email: user.email || '',
+          phoneNo: user.phone || '',
+          collegeName: user.collegeName || '',
+          degreeName: user.degreeName || '',
+        }));
+      } else {
+        const profileRes = await axios.get('/api/auth/me', authHeader);
+        const me = profileRes.data;
+        setFormData((prev) => ({
+          ...prev,
+          fullName: me.name || '',
+          email: me.email || '',
+          phoneNo: me.phone || '',
+          collegeName: me.collegeName || '',
+          degreeName: me.degreeName || '',
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching initial data:', err);
+      setError('Could not fetch user details. Please ensure you are logged in.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  async function onSubmit(e) {
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!hodLetter) {
-      return setError('Please attach the HOD Forwarding / Recommendation Letter in PDF format.');
-    }
-
     setSubmitting(true);
-    setError(null);
-
-    const fd = new FormData();
-    Object.entries(form).forEach(([key, val]) => {
-      if (key === 'academicRecords') {
-        fd.append('academicRecords', JSON.stringify(val));
-      } else {
-        fd.append(key, val);
-      }
-    });
-
-    fd.append('autoAssignRequested', mode === 'AUTO');
-    if (mode === 'DIRECT') {
-      fd.append('scientistId', form.scientistId);
-    }
-
-    fd.append('hodLetter', hodLetter);
-    if (categoryCert) fd.append('categoryCert', categoryCert);
+    setError('');
 
     try {
-      await api.post('/applications', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/applications', formData, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      navigate('/student');
+
+      if (res.status === 201 || res.status === 200) {
+        alert('Application submitted successfully!');
+        navigate('/dashboard');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Submission failed.');
+      setError(err.response?.data?.error || 'Failed to submit application.');
     } finally {
       setSubmitting(false);
     }
-  }
+  };
 
-  const inputClass = "w-full border border-gray-300 rounded px-3 py-1.5 text-sm mt-1 focus:ring-1 focus:ring-navy-600";
-  const readOnlyInputClass = "w-full border border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed rounded px-3 py-1.5 text-sm mt-1";
-  const labelClass = "text-xs font-semibold text-gray-700";
-
-  if (loadingProfile) {
-    return <div className="text-center py-12 text-sm text-gray-500">Loading student profile details...</div>;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-gray-600 font-medium">Loading user details from database...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="bg-white shadow-lg rounded-xl p-6 sm:p-8 border border-gray-200">
-        
-        <div className="text-center border-b pb-4 mb-6">
-          <h2 className="text-sm font-bold uppercase text-gray-600">WADIA INSTITUTE OF HIMALAYAN GEOLOGY</h2>
-          <h1 className="text-xl font-extrabold text-slate-800">APPLICATION FORM FOR DISSERTATION WORK / INTERNSHIP PROGRAMME</h1>
-        </div>
+    <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="bg-white shadow rounded-lg p-6 sm:p-8 border border-gray-200">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Application Form</h1>
+        <p className="text-sm text-gray-600 mb-6">
+          Wadia Institute of Himalayan Geology — Training & Dissertation Program
+        </p>
 
-        {error && <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 text-xs rounded">{error}</div>}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-sm">
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={onSubmit} className="space-y-6">
-          
-          <div className="grid sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
-            <div>
-              <label className={labelClass}>Programme Applying For *</label>
-              <select className={inputClass} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                <option value="INTERNSHIP">Internship Programme (1 - 3 Months)</option>
-                <option value="DISSERTATION">Dissertation Work (4 - 6 Months)</option>
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Year *</label>
-              <input required className={inputClass} value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Dropdown Menu for Internship or Dissertation */}
+          <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+            <label className="block text-sm font-semibold text-blue-900 mb-2">
+              Select Application Type *
+            </label>
+            <select
+              name="type"
+              value={formData.type}
+              onChange={handleChange}
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm font-medium"
+            >
+              <option value="INTERNSHIP">Internship</option>
+              <option value="DISSERTATION">Dissertation</option>
+            </select>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-slate-800 border-b pb-1">1. Personal Information</h3>
-            
-            <div className="grid sm:grid-cols-2 gap-4">
+          {/* Personal Information (Auto-filled) */}
+          <div className="border-t border-gray-200 pt-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>1. Full Name (Auto-fetched) *</label>
-                <input readOnly className={readOnlyInputClass} value={form.fullName} />
+                <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+                <input
+                  type="text"
+                  name="fullName"
+                  required
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                />
               </div>
-              <div>
-                <label className={labelClass}>2. Father's / Husband's Name *</label>
-                <input required className={inputClass} value={form.fatherOrHusbandName} onChange={(e) => setForm({ ...form, fatherOrHusbandName: e.target.value })} />
-              </div>
-            </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>3. (a) Address For Correspondence *</label>
-                <textarea required rows={2} className={inputClass} value={form.addressCorrespondence} onChange={(e) => setForm({ ...form, addressCorrespondence: e.target.value })} />
+                <label className="block text-sm font-medium text-gray-700">Email Address *</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-100"
+                  readOnly
+                />
               </div>
-              <div>
-                <label className={labelClass}>3. (b) Permanent Address *</label>
-                <textarea required rows={2} className={inputClass} value={form.addressPermanent} onChange={(e) => setForm({ ...form, addressPermanent: e.target.value })} />
-              </div>
-            </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>Contact Phone No. (Auto-fetched) *</label>
-                <input readOnly type="tel" className={readOnlyInputClass} value={form.phoneNo} />
+                <label className="block text-sm font-medium text-gray-700">Mobile Phone Number *</label>
+                <input
+                  type="tel"
+                  name="phoneNo"
+                  required
+                  value={formData.phoneNo}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                />
               </div>
-              <div>
-                <label className={labelClass}>E-mail Address (Auto-fetched) *</label>
-                <input readOnly type="email" className={readOnlyInputClass} value={form.email} />
-              </div>
-            </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>College / University (Auto-fetched) *</label>
-                <input readOnly className={readOnlyInputClass} value={form.collegeName || 'N/A'} />
+                <label className="block text-sm font-medium text-gray-700">Father / Husband Name</label>
+                <input
+                  type="text"
+                  name="fatherOrHusbandName"
+                  value={formData.fatherOrHusbandName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
               </div>
-              <div>
-                <label className={labelClass}>Degree Name (Auto-fetched) *</label>
-                <input readOnly className={readOnlyInputClass} value={form.degreeName || 'N/A'} />
-              </div>
-            </div>
 
-            <div className="grid sm:grid-cols-3 gap-4">
               <div>
-                <label className={labelClass}>4. Date of Birth *</label>
-                <input required type="date" className={inputClass} value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} />
+                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                <input
+                  type="date"
+                  name="dob"
+                  value={formData.dob}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
               </div>
-              <div className="sm:col-span-2">
-                <label className={labelClass}>Place of Birth *</label>
-                <input required className={inputClass} value={form.placeOfBirth} onChange={(e) => setForm({ ...form, placeOfBirth: e.target.value })} />
-              </div>
-            </div>
 
-            <div className="grid sm:grid-cols-3 gap-4">
               <div>
-                <label className={labelClass}>Age (Years)</label>
-                <input required type="number" className={inputClass} value={form.ageYears} onChange={(e) => setForm({ ...form, ageYears: e.target.value })} placeholder="Years" />
-              </div>
-              <div>
-                <label className={labelClass}>Age (Months)</label>
-                <input required type="number" className={inputClass} value={form.ageMonths} onChange={(e) => setForm({ ...form, ageMonths: e.target.value })} placeholder="Months" />
-              </div>
-              <div>
-                <label className={labelClass}>Age (Days)</label>
-                <input required type="number" className={inputClass} value={form.ageDays} onChange={(e) => setForm({ ...form, ageDays: e.target.value })} placeholder="Days" />
-              </div>
-            </div>
-
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div>
-                <label className={labelClass}>5. (a) Sex *</label>
-                <select className={inputClass} value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                <label className="block text-sm font-medium text-gray-700">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                >
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div>
-                <label className={labelClass}>5. (b) Marital Status *</label>
-                <select className={inputClass} value={form.maritalStatus} onChange={(e) => setForm({ ...form, maritalStatus: e.target.value })}>
-                  <option value="Single">Single</option>
-                  <option value="Married">Married</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>5. (c) Identification Mark</label>
-                <input className={inputClass} value={form.identificationMark} onChange={(e) => setForm({ ...form, identificationMark: e.target.value })} />
-              </div>
             </div>
+          </div>
 
-            <div className="grid sm:grid-cols-2 gap-4">
+          {/* Academic Details (Auto-filled) */}
+          <div className="border-t border-gray-200 pt-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Academic Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>6. Nationality *</label>
-                <input required className={inputClass} value={form.nationality} onChange={(e) => setForm({ ...form, nationality: e.target.value })} />
+                <label className="block text-sm font-medium text-gray-700">College / University Name *</label>
+                <input
+                  type="text"
+                  name="collegeName"
+                  required
+                  value={formData.collegeName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                />
               </div>
+
               <div>
-                <label className={labelClass}>7. Category (General/SC/ST/OBC)</label>
-                <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                  <option value="General">General</option>
-                  <option value="SC">Scheduled Caste (SC)</option>
-                  <option value="ST">Scheduled Tribe (ST)</option>
-                  <option value="OBC">Other Backward Class (OBC)</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700">Degree Name *</label>
+                <input
+                  type="text"
+                  name="degreeName"
+                  required
+                  value={formData.degreeName}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Current Year / Semester</label>
+                <input
+                  type="text"
+                  name="year"
+                  placeholder="e.g. 3rd Year / 6th Semester"
+                  value={formData.year}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Duration (Months) *</label>
+                <input
+                  type="number"
+                  name="durationMonths"
+                  min="1"
+                  max="12"
+                  required
+                  value={formData.durationMonths}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-800 border-b pb-1">8. Academic Qualifications (Commencing from High School)</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border border-gray-300">
-                <thead className="bg-gray-100 text-gray-700">
-                  <tr>
-                    <th className="p-2 border">Exam / Degree</th>
-                    <th className="p-2 border">Subject / Specialization</th>
-                    <th className="p-2 border">Year</th>
-                    <th className="p-2 border">Division</th>
-                    <th className="p-2 border">% / Grade</th>
-                    <th className="p-2 border">University / Board</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.academicRecords.map((rec, idx) => (
-                    <tr key={idx} className="border-b">
-                      <td className="p-2 font-semibold border bg-gray-50">{rec.exam}</td>
-                      <td className="p-1 border">
-                        <input className="w-full p-1 border rounded" value={rec.subject} onChange={(e) => handleAcademicChange(idx, 'subject', e.target.value)} />
-                      </td>
-                      <td className="p-1 border">
-                        <input className="w-full p-1 border rounded" value={rec.year} onChange={(e) => handleAcademicChange(idx, 'year', e.target.value)} />
-                      </td>
-                      <td className="p-1 border">
-                        <input className="w-full p-1 border rounded" value={rec.division} onChange={(e) => handleAcademicChange(idx, 'division', e.target.value)} />
-                      </td>
-                      <td className="p-1 border">
-                        <input className="w-full p-1 border rounded" value={rec.percentage} onChange={(e) => handleAcademicChange(idx, 'percentage', e.target.value)} />
-                      </td>
-                      <td className="p-1 border">
-                        <input className="w-full p-1 border rounded" value={rec.board} onChange={(e) => handleAcademicChange(idx, 'board', e.target.value)} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className={labelClass}>9. Have you been punished during your studies at College/University?</label>
-              <input className={inputClass} placeholder="Enter details or write 'NO'" value={form.punishedDetails} onChange={(e) => setForm({ ...form, punishedDetails: e.target.value })} />
+          {/* Supervisor / Scientist Selection */}
+          <div className="border-t border-gray-200 pt-4">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Scientist / Supervisor Selection</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">Select Supervisor</label>
+              <select
+                name="scientistId"
+                value={formData.scientistId}
+                onChange={handleChange}
+                disabled={formData.autoAssignRequested}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm disabled:bg-gray-100"
+              >
+                <option value="">-- Select a Scientist --</option>
+                {scientists.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.specialization}) - Seats: {s.availableSeats}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div>
-              <label className={labelClass}>10. Prizes / Medals / Awards / Honours, if any</label>
-              <input className={inputClass} value={form.prizesAndAwards} onChange={(e) => setForm({ ...form, prizesAndAwards: e.target.value })} />
-            </div>
-
-            <div>
-              <label className={labelClass}>11. Special Training / Assignment / Any other Relevant Particulars</label>
-              <input className={inputClass} value={form.specialTraining} onChange={(e) => setForm({ ...form, specialTraining: e.target.value })} />
-            </div>
-
-            <div>
-              <label className={labelClass}>12. Statement of Research Interest (100 - 150 words) *</label>
-              <textarea required rows={4} className={inputClass} placeholder="Describe your research area and interest at WIHG..." value={form.researchInterest} onChange={(e) => setForm({ ...form, researchInterest: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-lg border space-y-3">
-            <label className="text-xs font-bold text-slate-800 block">Faculty / Mentor Consent</label>
-            <div className="flex flex-col sm:flex-row gap-4 text-xs">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="radio" name="mode" checked={mode === 'AUTO'} onChange={() => setMode('AUTO')} />
-                <span>Auto-Allocation by Training Cell</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="radio" name="mode" checked={mode === 'DIRECT'} onChange={() => setMode('DIRECT')} />
-                <span>I have obtained consent from a WIHG Scientist</span>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="autoAssignRequested"
+                name="autoAssignRequested"
+                checked={formData.autoAssignRequested}
+                onChange={handleChange}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="autoAssignRequested" className="ml-2 text-sm text-gray-700">
+                Auto-assign supervisor based on institute availability
               </label>
             </div>
-
-            {mode === 'DIRECT' && (
-              <div className="pt-2">
-                <label className={labelClass}>Select Approved Scientist *</label>
-                <select required className={inputClass} value={form.scientistId} onChange={(e) => setForm({ ...form, scientistId: e.target.value })}>
-                  <option value="">Choose Scientist...</option>
-                  {scientists.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.specialization})</option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
 
-          <div className="space-y-3 border-t pt-4">
-            <h3 className="text-sm font-bold text-slate-800">Mandatory File Uploads</h3>
-            
-            <div>
-              <label className={labelClass}>Forwarding Letter / Recommendation from Head of Department (PDF) *</label>
-              <input required type="file" accept=".pdf" className="w-full text-xs text-gray-600 mt-1" onChange={(e) => setHodLetter(e.target.files[0])} />
-            </div>
-
-            {form.category !== 'General' && (
-              <div>
-                <label className={labelClass}>Attested Copy of Category Certificate (SC/ST/OBC) (PDF/JPG)</label>
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="w-full text-xs text-gray-600 mt-1" onChange={(e) => setCategoryCert(e.target.files[0])} />
-              </div>
-            )}
+          {/* Research Topic */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Proposed Topic / Field of Research</label>
+            <textarea
+              name="topic"
+              rows={3}
+              value={formData.topic}
+              onChange={handleChange}
+              placeholder="Briefly describe your proposed area of work or topic..."
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+            />
           </div>
 
-          <button disabled={submitting} type="submit" className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-lg text-sm transition">
-            {submitting ? 'Submitting Application...' : 'Submit Official Application Form'}
-          </button>
+          <div className="pt-4">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {submitting ? 'Submitting Application...' : 'Submit Application'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
