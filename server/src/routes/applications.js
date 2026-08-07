@@ -10,7 +10,7 @@ export default function ApplicationForm() {
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
-    type: 'INTERNSHIP',
+    type: 'INTERNSHIP', // Dropdown: INTERNSHIP or DISSERTATION
     fullName: '',
     email: '',
     phoneNo: '',
@@ -44,16 +44,16 @@ export default function ApplicationForm() {
       const token = localStorage.getItem('token');
       const authHeader = { headers: { Authorization: `Bearer ${token}` } };
 
-      // 1. Fetch current logged-in user details to auto-fill
+      // 1. Automatically fetch user details stored in database
       const profileRes = await axios.get('/api/auth/me', authHeader);
       const user = profileRes.data;
 
-      // 2. Fetch active scientists list
+      // 2. Fetch list of available scientists
       const scientistRes = await axios.get('/api/scientists', authHeader).catch(() => ({ data: [] }));
 
       setScientists(scientistRes.data || []);
 
-      // Auto-populate form fields from existing profile
+      // Pre-fill Name, Email, Phone, College Name, and Degree Name from DB
       setFormData((prev) => ({
         ...prev,
         fullName: user.name || '',
@@ -63,8 +63,8 @@ export default function ApplicationForm() {
         degreeName: user.degreeName || '',
       }));
     } catch (err) {
-      console.error('Error loading initial data:', err);
-      setError('Failed to load user profile. Please login again.');
+      console.error('Error fetching details:', err);
+      setError('Could not fetch user details. Please make sure you are logged in.');
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function ApplicationForm() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="text-gray-600 font-medium">Loading form details...</div>
+        <div className="text-gray-600 font-medium">Fetching details from database...</div>
       </div>
     );
   }
@@ -123,23 +123,23 @@ export default function ApplicationForm() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Application Type */}
-          <div className="bg-blue-50 p-4 rounded-md border border-blue-100">
-            <label className="block text-sm font-semibold text-blue-900 mb-1">
-              Application Category *
+          {/* Dropdown Menu for Internship or Dissertation */}
+          <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+            <label className="block text-sm font-semibold text-blue-900 mb-2">
+              Select Application Type *
             </label>
             <select
               name="type"
               value={formData.type}
               onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm font-medium"
             >
               <option value="INTERNSHIP">Internship</option>
               <option value="DISSERTATION">Dissertation</option>
             </select>
           </div>
 
-          {/* Personal Information */}
+          {/* Personal Information (Auto-filled from Database) */}
           <div className="border-t border-gray-200 pt-4">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Personal Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -151,7 +151,7 @@ export default function ApplicationForm() {
                   required
                   value={formData.fullName}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
                 />
               </div>
 
@@ -163,20 +163,20 @@ export default function ApplicationForm() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-100"
                   readOnly
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Mobile Phone *</label>
+                <label className="block text-sm font-medium text-gray-700">Mobile Phone Number *</label>
                 <input
                   type="tel"
                   name="phoneNo"
                   required
                   value={formData.phoneNo}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
                 />
               </div>
 
@@ -218,7 +218,7 @@ export default function ApplicationForm() {
             </div>
           </div>
 
-          {/* Academic Information */}
+          {/* Academic Details (Auto-filled from Database) */}
           <div className="border-t border-gray-200 pt-4">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Academic Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -230,7 +230,7 @@ export default function ApplicationForm() {
                   required
                   value={formData.collegeName}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
                 />
               </div>
 
@@ -242,7 +242,7 @@ export default function ApplicationForm() {
                   required
                   value={formData.degreeName}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50"
                 />
               </div>
 
@@ -251,7 +251,7 @@ export default function ApplicationForm() {
                 <input
                   type="text"
                   name="year"
-                  placeholder="e.g. 3rd Year / 6th Sem"
+                  placeholder="e.g. 3rd Year / 6th Semester"
                   value={formData.year}
                   onChange={handleChange}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
@@ -259,7 +259,7 @@ export default function ApplicationForm() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">Duration (in months) *</label>
+                <label className="block text-sm font-medium text-gray-700">Duration (Months) *</label>
                 <input
                   type="number"
                   name="durationMonths"
@@ -274,10 +274,9 @@ export default function ApplicationForm() {
             </div>
           </div>
 
-          {/* Supervisor Selection */}
+          {/* Supervisor / Scientist Selection */}
           <div className="border-t border-gray-200 pt-4">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Scientist / Supervisor Choice</h2>
-            
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Scientist / Supervisor Selection</h2>
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700">Select Supervisor</label>
               <select
@@ -324,7 +323,6 @@ export default function ApplicationForm() {
             />
           </div>
 
-          {/* Submit */}
           <div className="pt-4">
             <button
               type="submit"

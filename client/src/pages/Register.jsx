@@ -1,139 +1,171 @@
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
 
-// Secret key for JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'wihg-secret-key-2026';
+const ALLOWED_DEGREES = [
+  'B.Tech / B.E. (Relevant Field)',
+  'M.Sc. (Relevant Field)',
+  'M.Tech / M.E. (Relevant Field)',
+  'M.S. / Int. M.Sc. (Relevant Field)',
+  'Ph.D. / Research Scholar',
+];
 
-// Middleware to verify JWT Token
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) return res.status(401).json({ error: 'Access token required' });
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired token' });
-    req.user = user;
-    next();
+export default function Register() {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    collegeName: '',
+    degreeName: ALLOWED_DEGREES[0],
   });
-};
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-// ----------------------------------------------------
-// REGISTER ROUTE
-// ----------------------------------------------------
-router.post('/register', async (req, res) => {
-  try {
-    const { name, email, password, phone, collegeName, degreeName, degreeType } = req.body;
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: 'Name, email, and password are required' });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post('/api/auth/register', formData);
+      if (response.status === 201) {
+        alert('Registration successful! Please log in to complete your application.');
+        navigate('/login');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return res.status(400).json({ error: 'User already exists with this email' });
-    }
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Student Sign Up
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Staff accounts (Scientist/Accounts/Admin) are created by the Training Cell.
+        </p>
+      </div>
 
-    const passwordHash = await bcrypt.hash(password, 10);
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200">
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-sm">
+              {error}
+            </div>
+          )}
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        phone: phone || null,
-        collegeName: collegeName || null,
-        degreeName: degreeName || null,
-        degreeType: degreeType || null,
-        role: 'STUDENT',
-      },
-    });
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Full Name *</label>
+              <input
+                type="text"
+                name="name"
+                required
+                value={formData.name}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Full Name"
+              />
+            </div>
 
-    res.status(201).json({ message: 'User registered successfully', userId: user.id });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Internal server error during registration' });
-  }
-});
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Email Address *</label>
+              <input
+                type="email"
+                name="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="email@example.com"
+              />
+            </div>
 
-// ----------------------------------------------------
-// LOGIN ROUTE
-// ----------------------------------------------------
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Mobile Phone Number *</label>
+              <input
+                type="tel"
+                name="phone"
+                required
+                value={formData.phone}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Phone Number"
+              />
+            </div>
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
+            <div>
+              <label className="block text-sm font-medium text-gray-700">College / University Name *</label>
+              <input
+                type="text"
+                name="collegeName"
+                required
+                value={formData.collegeName}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Enter College/University Name"
+              />
+            </div>
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Degree Name *</label>
+              <select
+                name="degreeName"
+                value={formData.degreeName}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                {ALLOWED_DEGREES.map((deg) => (
+                  <option key={deg} value={deg}>
+                    {deg}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                ⚠️ Note: Only B.Tech in relevant field and PG students in relevant field are allowed to apply.
+              </p>
+            </div>
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Password *</label>
+              <input
+                type="password"
+                name="password"
+                required
+                value={formData.password}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="••••••••"
+              />
+            </div>
 
-    const token = jwt.sign(
-      { userId: user.id, role: user.role, email: user.email, name: user.name },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {loading ? 'Creating account...' : 'Create account'}
+            </button>
+          </form>
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        collegeName: user.collegeName,
-        degreeName: user.degreeName,
-        degreeType: user.degreeType,
-      },
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error during login' });
-  }
-});
-
-// ----------------------------------------------------
-// GET CURRENT USER PROFILE ROUTE
-// ----------------------------------------------------
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        collegeName: true,
-        degreeName: true,
-        degreeType: true,
-        role: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.json(user);
-  } catch (error) {
-    console.error('Fetch profile error:', error);
-    res.status(500).json({ error: 'Failed to fetch user profile' });
-  }
-});
-
-module.exports = router;
+          <div className="mt-6 text-center text-sm">
+            <span className="text-gray-600">Already have an account? </span>
+            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
+              Log in
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
