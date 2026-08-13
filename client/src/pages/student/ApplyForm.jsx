@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../api';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ApplyForm() {
@@ -43,14 +43,11 @@ export default function ApplyForm() {
 
   const fetchInitialData = async () => {
     try {
-      const token = localStorage.getItem('wihg_token');
-      const authHeader = { headers: { Authorization: `Bearer ${token}` } };
-
       // Fetch active scientists list safely
-      const scientistRes = await axios.get('/api/scientists', authHeader).catch(() => ({ data: [] }));
+      const scientistRes = await api.get('/scientists').catch(() => ({ data: [] }));
       setScientists(Array.isArray(scientistRes.data) ? scientistRes.data : []);
 
-      // Pre-fill user data from AuthContext or fallback /api/auth/me call
+      // Pre-fill user data from AuthContext or fallback /auth/me call
       if (user) {
         setFormData((prev) => ({
           ...prev,
@@ -61,7 +58,7 @@ export default function ApplyForm() {
           degreeName: user.degreeName || '',
         }));
       } else {
-        const profileRes = await axios.get('/api/auth/me', authHeader);
+        const profileRes = await api.get('/auth/me');
         const me = profileRes.data;
         setFormData((prev) => ({
           ...prev,
@@ -94,14 +91,11 @@ export default function ApplyForm() {
     setError('');
 
     try {
-      const token = localStorage.getItem('wihg_token');
-      const res = await axios.post('/api/applications', formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.post('/applications', formData);
 
       if (res.status === 201 || res.status === 200) {
         alert('Application submitted successfully!');
-        navigate('/dashboard');
+        navigate('/student');
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit application.');

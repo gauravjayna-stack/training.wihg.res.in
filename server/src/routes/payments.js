@@ -10,7 +10,7 @@ const uploadReceipt = makeUploader('receipts');
 // STUDENT: upload fee payment details (UTR + receipt) for an approved application.
 router.post('/:applicationId', requireAuth, requireRole('STUDENT'), uploadReceipt.single('receipt'), async (req, res) => {
   const app = await prisma.application.findUnique({ where: { id: req.params.applicationId } });
-  if (!app || app.studentId !== req.user.id) return res.status(404).json({ error: 'Application not found.' });
+  if (!app || app.studentId !== req.user.userId) return res.status(404).json({ error: 'Application not found.' });
   if (app.status !== 'FEE_PAYMENT_NEEDED') {
     return res.status(400).json({ error: 'This application is not awaiting fee payment.' });
   }
@@ -52,7 +52,7 @@ router.patch('/:id/decision', requireAuth, requireRole('ACCOUNTS', 'ADMIN'), asy
   if (decision === 'VERIFY') {
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: 'VERIFIED', verifiedById: req.user.id, verifiedAt: new Date() },
+      data: { status: 'VERIFIED', verifiedById: req.user.userId, verifiedAt: new Date() },
     });
     await prisma.application.update({ where: { id: payment.applicationId }, data: { status: 'APPROVED_FOR_JOINING' } });
     const t = templates.paymentVerified(payment.application.student.name);
