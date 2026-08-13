@@ -12,7 +12,7 @@ const uploadReport = makeUploader('reports');
 // STUDENT: submit final report + feedback to request certificate issuance.
 router.post('/:applicationId/request', requireAuth, requireRole('STUDENT'), uploadReport.single('report'), async (req, res) => {
   const app = await prisma.application.findUnique({ where: { id: req.params.applicationId } });
-  if (!app || app.studentId !== req.user.id) return res.status(404).json({ error: 'Application not found.' });
+  if (!app || app.studentId !== req.user.userId) return res.status(404).json({ error: 'Application not found.' });
   if (app.status !== 'IN_PROGRESS') {
     return res.status(400).json({ error: 'Certificates can only be requested once your tenure is in progress/complete.' });
   }

@@ -8,7 +8,11 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/applications/mine').then((res) => setApplications(res.data)).finally(() => setLoading(false));
+    api
+      .get('/applications')
+      .then((res) => setApplications(res.data))
+      .catch(() => setApplications([]))
+      .finally(() => setLoading(false));
   }, []);
 
   return (

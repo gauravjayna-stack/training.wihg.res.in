@@ -187,7 +187,7 @@ export default function JoiningForm() {
 
       setShowPreview(false);
       setSuccessMsg('Joining Form submitted successfully! Redirecting to dashboard...');
-      setTimeout(() => navigate('/student/dashboard'), 2000);
+      setTimeout(() => navigate('/student'), 2000);
     } catch (err) {
       setErrorMsg(err.response?.data?.error || 'Failed to submit joining form.');
       setShowPreview(false);

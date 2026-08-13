@@ -22,7 +22,7 @@ router.get('/prefill/:applicationId', requireAuth, requireRole('STUDENT'), async
       include: { student: true, scientist: true },
     });
 
-    if (!app || app.studentId !== req.user.id) {
+    if (!app || app.studentId !== req.user.userId) {
       return res.status(404).json({ error: 'Application not found.' });
     }
 
@@ -78,7 +78,7 @@ router.post(
         include: { student: true },
       });
 
-      if (!app || app.studentId !== req.user.id) {
+      if (!app || app.studentId !== req.user.userId) {
         return res.status(404).json({ error: 'Application not found.' });
       }
 
