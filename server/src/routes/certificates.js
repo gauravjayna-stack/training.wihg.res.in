@@ -44,6 +44,7 @@ router.get('/verify/:certNo', async (req, res) => {
   if (!certificate || !certificate.adminApproved) {
     return res.status(404).json({ valid: false, message: 'No issued certificate found for this ID.' });
   }
+  
   res.json({
     valid: true,
     certNo: certificate.uniqueCertNo,
