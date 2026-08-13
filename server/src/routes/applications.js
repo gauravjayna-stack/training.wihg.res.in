@@ -20,6 +20,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+
 router.get('/', authenticateToken, async (req, res) => {
   try {
     let applications;
